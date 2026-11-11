@@ -1,0 +1,13 @@
+**1. Top 5 risks (ranked)**
+
+1. **Privacy claim fails technically.** The derivation path is a public argument inside every sign request to `v1.signer-prod.testnet`. Anyone can read the path on NearBlocks, then call the signer contract's permissionless `derive_key` view method with (accountId, path) and retrieve the Solana address. Random paths only help before the first signing request; funding flows leak linkage too. The README table as written is false.
+2. **The backend breaks the trust claim.** If the backend "builds the unsigned SPL transfer," it chooses recipient, amount, and blockhash — the MPC signs whatever bytes arrive, and the wallet approves opaque payload bytes (blind signing). The server effectively controls what gets signed. Build the Solana message client-side, or honestly rename v1 to "trusted relay."
+3. **The Ed25519 sign pipeline is the real spike.** Payload must be the exact serialized message bytes; attach the returned r||s to a manually constructed (versioned) transaction with the derived pubkey as fee payer — solana-web3.js convenience signing re-serializes and breaks it. MPC latency (tens of seconds) can outlive a blockhash: plan the resubmit path. Verify the signature locally against the derived pubkey before broadcast — this also catches domain/key_version mismatches; ensure derive_key and sign both use Ed25519 (older examples default to Secp256k1).
+4. **"Real devnet USDC" doesn't exist.** Circle has no devnet USDC; you'll mint your own — call it test USDC. Watch decimals: USDC on Solana uses 9, not 6 — read decimals from the mint and use transferChecked. Recipient ATAs may not exist and need funding from the derived address (~0.002 SOL rent), and devnet faucets are rate-limited: pre-fund once, script it.
+5. **No checkpoints or ops budget.** 3.5 days includes the video and demo reruns; each sign request needs a deposit (check the contract's required amount); stored random paths die with the backend or a lost device (localStorage is enough).
+
+**2. Technical errors:** path publicity (above), domain consistency, byte-exact serialization, USDC decimals 9, "devnet USDC" framing. All fixable.
+
+**3. Cut/change:** Explorer defaults to links-only now, not as fallback. Random path stays (it's 30 minutes) but reword README: "pseudo-random address; linkage public after first request." Checkpoint EOD 12 Nov: one signed devnet transfer from a Node script with local signature verification — else execute cut order. Port the official near-examples Solana reference instead of hand-rolling.
+
+**4. Verdict: ship with changes.** Scope is right, no Rust needed anywhere, and the core is provable in ~1.5 days off existing reference code — but fix the privacy story and payload provenance before judges find both.

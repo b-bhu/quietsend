@@ -1,0 +1,25 @@
+1) TOP 5 RISKS, RANKED
+
+1. Ed25519 payload format trap. For Solana, the MPC signs the FULL serialized message bytes (Eddsa payload, up to ~1232 bytes), not a 32-byte hash like the BTC/ETH examples. If step 3 builds around a 32-byte payload, it breaks. Spike this first.
+2. Async signature return. The wallet redirect does not return the signature. The MPC responds in a later receipt; you must poll tx status / receipts and decode SuccessValue. Your flow glosses over this; it's the day's work nobody scheduled.
+3. Blockhash expiry (~150 slots / ~60-90s) vs. wallet redirect + MPC latency. Demos will intermittently fail. Fetch blockhash as late as possible; plan rebuild-and-resign as a fallback (durable nonce if cheap).
+4. Privacy overclaim. The path is a cleartext arg of the public sign call — unlinkability survives only until the first signature request. Call it obfuscation/unlinkability, not privacy. Your README table is good; the summary line isn't.
+5. Backend scope creep (path DB, per-user records, "show a user only their transfers" = auth). Biggest schedule risk; cut now, not under pressure.
+
+2) TECHNICAL ERRORS / CORRECTIONS
+
+- Deposit: sign requires an attached NEAR deposit; query it dynamically (experimental_signature_deposit) — ed25519 fees differ from secp256k1 — and attach generous gas, not defaults. "One NEAR transaction" must cover both.
+- Self-minted SPL token is not USDC. Either use Circle's devnet USDC mint (faucet.circle.com) or label it honestly as a test token.
+- Recipient ATA: an arbitrary recipient's USDC ATA may not exist; the transfer fails unless you create it in the same tx (fee payer = your derived account). Handle it.
+- Derivation: address comes from the MPC's derived_public_key view with (predecessor, path, domain) — per-account, so no cross-user reuse; verify arg names against current docs, the API has drifted.
+
+3) CUT / CHANGE TO SHIP
+
+- Go browser-only now: localStorage for the random path and transfer records; devnet Solana RPC is CORS-friendly, broadcast from the browser. Delete backend, DB, and auth.
+- Explorer page → plain Solana Explorer + NearBlocks links (your cut #1, applied immediately).
+- Day 1 = a headless TS script doing steps 1–5 end-to-end before any frontend exists. That script is the demo fallback.
+- Keep: random path, README honesty table, timeboxed video/post.
+
+4) VERDICT
+
+Ship with changes. The core flow is real and no Rust is needed — but only if you kill the backend, fix the payload model, and spike the sign round-trip on day 1.

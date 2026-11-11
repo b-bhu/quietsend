@@ -1,0 +1,25 @@
+{
+  "name": "near-usdc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@noble/curves": "^2.4.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4",
+    "@types/node": "^26.6.6",
+    "bs58": "^6.0.0",
+    "chainsig.js": "^1.1.16",
+    "dotenv": "^18.0.10",
+    "near-api-js": "^7.2.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

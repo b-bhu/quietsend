@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Session } from "../App";
 import type { Mode } from "../lib/history";
 import { isAddr } from "../lib/inspect";
+import { classifyRecipient, connection } from "../lib/solana";
 import { runSend } from "../lib/send";
 
 export default function Send({ session }: { session: Session }) {
@@ -11,6 +12,24 @@ export default function Send({ session }: { session: Session }) {
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [err, setErr] = useState<string>();
+  const [warn, setWarn] = useState<string>();
+
+  const lookupRecipient = async (raw: string) => {
+    const recipient = raw.trim();
+    if (!recipient || !isAddr(recipient)) {
+      setWarn(undefined);
+      return undefined;
+    }
+    try {
+      const { warning } = await classifyRecipient(connection, recipient);
+      setWarn(warning);
+      return warning;
+    } catch (e) {
+      setWarn(undefined);
+      console.warn("recipient lookup failed", e);
+      return undefined;
+    }
+  };
 
   const submit = async () => {
     setBusy(true);
@@ -19,6 +38,8 @@ export default function Send({ session }: { session: Session }) {
     try {
       const recipient = to.trim();
       if (!isAddr(recipient)) throw new Error("Not a valid Solana address");
+      const warning = await lookupRecipient(recipient);
+      if (warning) setLog((l) => [...l, "Warning: " + warning]);
       const rec = await runSend(
         { wallet: session.wallet, nearAccount: session.nearAccount, solanaAddress: session.solanaAddress, recipient, amountUi: amount, mode },
         (m) => setLog((l) => [...l, m]),
@@ -34,7 +55,17 @@ export default function Send({ session }: { session: Session }) {
   return (
     <div className="card">
       <label>Recipient Solana address</label>
-      <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Solana devnet address" disabled={busy} />
+      <input
+        value={to}
+        onChange={(e) => {
+          setTo(e.target.value);
+          setWarn(undefined);
+        }}
+        onBlur={() => void lookupRecipient(to)}
+        placeholder="Solana devnet address"
+        disabled={busy}
+      />
+      {warn && <p className="warn">{warn}</p>}
       <label>Amount (USDC)</label>
       <input value={amount} onChange={(e) => setAmount(e.target.value)} disabled={busy} />
       <label>Mode</label>

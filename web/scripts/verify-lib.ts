@@ -18,10 +18,11 @@ const store = new Map<string, string>();
 (globalThis as any).window = { dispatchEvent() {} };
 
 const { deriveSolanaAddress, signatureFromNearTx } = await import("../src/lib/near.ts");
-const { getBalances, formatUsdc, buildNormalTransfer, ataOf } = await import("../src/lib/solana.ts");
+const { getBalances, formatUsdc, buildNormalTransfer, ataOf, classifyRecipient, connection } = await import("../src/lib/solana.ts");
 const { requestPrivateTransfer, checkEconomics } = await import("../src/lib/magicblock.ts");
 const { runSend } = await import("../src/lib/send.ts");
 const { inspectTx } = await import("../src/lib/inspect.ts");
+const { matchMagicBlockPayout, DEFAULT_MB_VALIDATOR, DEFAULT_MB_VAULT } = await import("../../shared/magicblock-guards.ts");
 
 const ACCOUNT = "bibhu-usdc.testnet";
 const EXPECTED = "7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27";
@@ -70,9 +71,30 @@ ok(ataOf(RECIPIENT) === "6ejj46Y5gcukzFF3878XSgfAui6cUxh62Mboa2D4cCcd", "recipie
     seenAtaSigs: ["23Q26dTtYtakY2ZhxrqYX7NeLjzFzgwpk54Tz2Mag3eXBhp78rh43MC58uxskBxQLFQLJcesCz2tXqRedLNyCN5F"],
   };
   const r = await pollLeg2(rec, (m) => console.log("  ·", m), 20_000);
-  ok(r.leg2Sig === "S4LR9EjXeDpD8NyiDUVmeT8qSWtpGFKRcHaHhh8xBrWsFKQPhXgYp3fC3ozLnnkcm97pMLNVjsFX7rYYcU48FCq" && r.status === "settled", "pollLeg2 finds the payout (new sig + recipient delta == amount): " + r.leg2Sig?.slice(0, 10));
+  ok(r.leg2Sig === "S4LR9EjXeDpD8NyiDUVmeT8qSWtpGFKRcHaHhh8xBrWsFKQPhXgYp3fC3ozLnnkcm97pMLNVjsFX7rYYcU48FCq" && r.status === "settled", "pollLeg2 finds the payout (new sig + exact amount + MagicBlock signer/vault): " + r.leg2Sig?.slice(0, 10));
   const wrong = await pollLeg2({ ...rec, leg2Sig: undefined, status: "leg1-confirmed", amountBase: "123456" }, (m) => console.log("  ·", m), 8_000);
   ok(!wrong.leg2Sig, "pollLeg2 ignores a payout whose amount does not match");
+
+  // Negative: same settled payout data, but with a wrong signer and the vault stripped from accounts.
+  const payout = await inspectTx("S4LR9EjXeDpD8NyiDUVmeT8qSWtpGFKRcHaHhh8xBrWsFKQPhXgYp3fC3ozLnnkcm97pMLNVjsFX7rYYcU48FCq");
+  const payoutOpts = { recipient: RECIPIENT, amountBase: 100_000n, validator: DEFAULT_MB_VALIDATOR, vault: DEFAULT_MB_VAULT };
+  ok(!!payout && matchMagicBlockPayout(payout, payoutOpts).ok, "real settled payout is signed by the MagicBlock validator (or touches the vault)");
+  const spoofed = {
+    ...payout!,
+    signers: [addr],
+    accounts: payout!.accounts.filter((a) => a !== DEFAULT_MB_VALIDATOR && a !== DEFAULT_MB_VAULT),
+  };
+  const rejected = matchMagicBlockPayout(spoofed, payoutOpts);
+  ok(!rejected.ok, "exact amount with wrong signer and no vault is rejected: " + rejected.reason);
+}
+
+// 3c. recipient warning (read-only getAccountInfo): mint warns, a normal wallet passes
+{
+  const USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+  const mint = await classifyRecipient(connection, USDC_MINT);
+  ok(!!mint.warning, "USDC mint address warns: " + mint.warning);
+  const wallet = await classifyRecipient(connection, RECIPIENT);
+  ok(!wallet.warning, "known wallet 7iNJ… passes with no warning");
 }
 // 4. optional real sends
 const mode = process.argv.includes("--send") ? process.argv[process.argv.indexOf("--send") + 1] : undefined;

@@ -14,6 +14,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { SOLANA_RPC, USDC_DECIMALS, USDC_MINT } from "./config";
+export { classifyRecipient } from "../../../shared/magicblock-guards";
 
 // Public devnet RPCs answer 429/502/503 under light load; retry with backoff (no websocket is used, see broadcast()).
 export const rpcFetch: typeof fetch = async (input, init) => {

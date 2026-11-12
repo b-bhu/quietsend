@@ -11,5 +11,5 @@ code, .mono { font-family: ui-monospace, monospace; font-size: 13px; word-break:
 .card { border: 1px solid #ccc; background: #fff; padding: 12px; border-radius: 6px; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; align-items: start; }
 .pub { color: #a30; } .hid { color: #070; } .tag { font-weight: 700; font-size: 12px; }
-.err { color: #b00; } .log { white-space: pre-wrap; font-size: 12px; background: #eee; padding: 8px; max-height: 200px; overflow: auto; }
+.err { color: #b00; } .warn { color: #950; } .log { white-space: pre-wrap; font-size: 12px; background: #eee; padding: 8px; max-height: 200px; overflow: auto; }
 table { border-collapse: collapse; width: 100%; } td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eee; }

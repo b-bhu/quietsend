@@ -23,7 +23,8 @@ import {
   toHex,
   type Unsigned,
 } from "./solana";
-import { DERIVATION_PATH } from "./config";
+import { matchMagicBlockPayout } from "../../../shared/magicblock-guards";
+import { DERIVATION_PATH, MB_VALIDATOR, MB_VAULT } from "./config";
 import { inspectTx } from "./inspect";
 
 export type Log = (msg: string) => void;
@@ -144,7 +145,8 @@ async function finish(rec: SendRecord, p: PendingSend, signature: Uint8Array, lo
 
 /**
  * Watch the recipient's token account for MagicBlock's payout. A signature only counts when it is new (not in
- * the pre-send set, not leg 1) AND its parsed USDC balance changes show the recipient received exactly the amount.
+ * the pre-send set, not leg 1), the recipient received exactly the amount, AND it is signed by the MagicBlock
+ * validator or touches the MagicBlock vault. Other exact-amount transfers are logged and ignored.
  */
 export async function pollLeg2(rec: SendRecord, log: Log = () => {}, timeoutMs = 5 * 60_000): Promise<SendRecord> {
   const seen = new Set([...(rec.seenAtaSigs ?? []), rec.leg1Sig ?? ""]);
@@ -158,15 +160,20 @@ export async function pollLeg2(rec: SendRecord, log: Log = () => {}, timeoutMs =
       });
       if (!v) continue; // not indexed yet; look again next round
       seen.add(sig);
-      const got = v.usdcChanges.find((c) => c.owner === rec.recipient)?.deltaBase ?? 0n;
-      if (!v.err && got === BigInt(rec.amountBase)) {
+      const match = matchMagicBlockPayout(v, {
+        recipient: rec.recipient,
+        amountBase: BigInt(rec.amountBase),
+        validator: MB_VALIDATOR,
+        vault: MB_VAULT,
+      });
+      if (match.ok) {
         rec.leg2Sig = sig;
         rec.status = "settled";
         saveRecord(rec);
         log("Leg 2 (payout) found: " + sig);
         return rec;
       }
-      log(`Ignoring ${sig.slice(0, 8)}...: recipient delta ${got} is not the expected ${rec.amountBase}`);
+      log(`Ignoring ${sig.slice(0, 8)}...: ${match.reason}`);
     }
     log("Waiting for MagicBlock payout...");
     await new Promise((r) => setTimeout(r, 6000));

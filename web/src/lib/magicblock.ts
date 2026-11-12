@@ -1,8 +1,9 @@
 import "./polyfill";
 import { Buffer } from "buffer";
-import { PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { VersionedTransaction } from "@solana/web3.js";
+import { assertMagicBlockTx, checkEconomics as checkEconomicsShared } from "../../../shared/magicblock-guards";
 import { MB_ALLOWED_PROGRAMS, MB_API, USDC_MINT } from "./config";
-import { ataOf, connection, type Unsigned } from "./solana";
+import { connection, type Unsigned } from "./solana";
 
 export interface MbTransfer extends Unsigned {
   sendTo: string;
@@ -48,17 +49,16 @@ export async function requestPrivateTransfer(from: string, to: string, amountBas
 
   const raw = Buffer.from(j.transactionBase64 as string, "base64");
   const tx = VersionedTransaction.deserialize(raw);
-  const keys = tx.message.staticAccountKeys.map((k) => k.toBase58());
   // The MPC signs whatever bytes it is given, so check before asking for a signature.
-  if (j.sendTo !== "base") throw new Error("MagicBlock returned sendTo=" + j.sendTo + " (expected base)");
-  if (tx.message.header.numRequiredSignatures !== 1 || keys[0] !== from)
-    throw new Error("MagicBlock transaction needs signers other than the sender; refusing to sign");
-  const programs = [...new Set(tx.message.compiledInstructions.map((i) => keys[i.programIdIndex]))];
-  const unknown = programs.filter((p) => !MB_ALLOWED_PROGRAMS.includes(p));
-  if (unknown.length) throw new Error("MagicBlock transaction calls an unrecognised program, refusing to sign: " + unknown.join(", "));
+  const { programs } = assertMagicBlockTx({
+    tx,
+    sendTo: j.sendTo,
+    from,
+    usdcMint: USDC_MINT,
+    allowedPrograms: MB_ALLOWED_PROGRAMS,
+  });
 
   const feesTokens = BigInt(j.fees?.tokens ?? "0");
-  checkTopLevelInstructions(tx, keys, ataOf(from));
   await checkEconomics(tx, from, amountBase, feesTokens);
 
   return {
@@ -73,66 +73,7 @@ export async function requestPrivateTransfer(from: string, to: string, amountBas
   };
 }
 
-const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-// SPL Token instruction tags we tolerate at the top level: Transfer (3), TransferChecked (12).
-// Approve / SetAuthority / CloseAccount / Burn etc. are rejected outright.
-const TOKEN_IX_OK = new Set([3, 12]);
-
-function checkTopLevelInstructions(tx: VersionedTransaction, keys: string[], senderAta: string) {
-  for (const ix of tx.message.compiledInstructions) {
-    const program = keys[ix.programIdIndex];
-    if (program == null)
-      throw new Error("MagicBlock transaction references a program via a lookup table; refusing to sign");
-    if (program !== TOKEN_PROGRAM) continue;
-    if (!ix.data.length || !TOKEN_IX_OK.has(ix.data[0]))
-      throw new Error("MagicBlock transaction contains a direct SPL Token instruction type " + ix.data[0] + "; refusing to sign");
-    const source = keys[ix.accountKeyIndexes[0]];
-    if (source !== senderAta)
-      throw new Error("MagicBlock transaction would transfer from a token account that is not your USDC account; refusing to sign");
-    if (ix.data[0] === 12) {
-      const mint = keys[ix.accountKeyIndexes[1]];
-      if (mint !== USDC_MINT)
-        throw new Error("MagicBlock transaction would transfer a token other than USDC; refusing to sign");
-    }
-  }
-}
-
-const u64le = (b: Uint8Array, o: number) => new DataView(b.buffer, b.byteOffset + o, 8).getBigUint64(0, true);
-
-/**
- * Don't trust the API's description of the transaction: simulate it (no signatures needed) and check what it
- * does to the user's own accounts. Sender USDC token account: spends at least `amount` and at most
- * amount + reported fee (+ 0.2% margin); owner unchanged; no delegate; no close authority.
- * Sender SOL: spends at most 0.01 SOL (tx fee + one-time rent).
- */
+/** Web wrapper around the shared economics check, bound to the app's connection and USDC mint. */
 export async function checkEconomics(tx: VersionedTransaction, from: string, amountBase: bigint, feesTokens: bigint) {
-  const senderAta = ataOf(from);
-  const senderPk = new PublicKey(from);
-  const ataPk = new PublicKey(senderAta);
-  const [before, solBefore] = await Promise.all([
-    connection.getAccountInfo(ataPk),
-    connection.getBalance(senderPk),
-  ]);
-  if (!before || before.data.length < 165) throw new Error("Your USDC account could not be read; refusing to sign");
-  const sim = await connection.simulateTransaction(tx, {
-    sigVerify: false,
-    replaceRecentBlockhash: true,
-    commitment: "confirmed",
-    accounts: { encoding: "base64", addresses: [senderAta, from] },
-  });
-  if (sim.value.err) throw new Error("MagicBlock transaction fails in simulation: " + JSON.stringify(sim.value.err));
-  const [after, sol] = sim.value.accounts ?? [];
-  if (!after || !sol) throw new Error("Simulation returned no account state; refusing to sign");
-  const post = Buffer.from(after.data[0], "base64");
-  if (post.length < 165) throw new Error("MagicBlock transaction would leave your USDC account in an unexpected state; refusing to sign");
-  const pre = before.data;
-  const spent = u64le(pre, 64) - u64le(post, 64);
-  const maxSpend = amountBase + feesTokens + amountBase / 500n + 1n;
-  if (spent < amountBase || spent > maxSpend)
-    throw new Error(`MagicBlock transaction would move ${spent} base units from your USDC account; expected ${amountBase} + fee ${feesTokens}. Refusing to sign.`);
-  if (!Buffer.from(post.subarray(32, 64)).equals(Buffer.from(pre.subarray(32, 64))))
-    throw new Error("MagicBlock transaction would change the owner of your USDC account; refusing to sign");
-  if (post.readUInt32LE(72) !== 0) throw new Error("MagicBlock transaction would set a delegate on your USDC account; refusing to sign");
-  if (post.length >= 133 && post.readUInt32LE(129) !== 0) throw new Error("MagicBlock transaction would set a close authority on your USDC account; refusing to sign");
-  if (solBefore - sol.lamports > 10_000_000) throw new Error("MagicBlock transaction would spend more than 0.01 SOL; refusing to sign");
+  return checkEconomicsShared(connection, tx, from, amountBase, feesTokens, USDC_MINT);
 }

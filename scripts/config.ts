@@ -2,6 +2,12 @@ import { Connection } from "@solana/web3.js";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  DEFAULT_MB_ALLOWED_PROGRAMS,
+  DEFAULT_MB_VALIDATOR,
+  DEFAULT_MB_VAULT,
+} from "../shared/magicblock-guards.ts";
+
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const KEYS_DIR = resolve(ROOT, ".keys");
@@ -26,6 +32,15 @@ export const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 // Official Circle Solana devnet USDC mint:
 // https://developers.circle.com/stablecoins/usdc-contract-addresses
 export const CIRCLE_USDC_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+export const MB_ALLOWED_PROGRAMS = [
+  ...DEFAULT_MB_ALLOWED_PROGRAMS,
+  ...(process.env.MB_EXTRA_PROGRAMS
+    ? process.env.MB_EXTRA_PROGRAMS.split(",").map((s) => s.trim()).filter(Boolean)
+    : []),
+];
+export const MB_VALIDATOR = process.env.MB_VALIDATOR || DEFAULT_MB_VALIDATOR;
+export const MB_VAULT = process.env.MB_VAULT || DEFAULT_MB_VAULT;
 
 // Deposit: 1 yoctoNEAR. chainsig.js getCurrentSignatureDeposit() and
 // https://github.com/near/mpc/blob/main/crates/contract/README.md

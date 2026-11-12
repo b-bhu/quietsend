@@ -1,4 +1,10 @@
 // All constants for quietsend v1. NEAR testnet + Solana devnet only.
+import {
+  DEFAULT_MB_ALLOWED_PROGRAMS,
+  DEFAULT_MB_VALIDATOR,
+  DEFAULT_MB_VAULT,
+} from "../../../shared/magicblock-guards";
+
 const env = ((import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {}) as Record<
   string,
   string | undefined
@@ -28,18 +34,15 @@ export const MB_API = "https://payments.magicblock.app";
 // Programs seen in the proven MagicBlock transfer (out/mb-inspect.txt). The app refuses to have the MPC
 // sign a MagicBlock transaction that calls anything else, since the MPC signs whatever bytes it is given.
 export const MB_ALLOWED_PROGRAMS = [
-  "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2", // ephemeral SPL token program
-  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-  "11111111111111111111111111111111",
-  "ComputeBudget111111111111111111111111111111",
-  "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1",
-  "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
-  "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57",
+  ...DEFAULT_MB_ALLOWED_PROGRAMS,
   ...(env.VITE_MB_EXTRA_PROGRAMS
     ? env.VITE_MB_EXTRA_PROGRAMS.split(",").map((s) => s.trim()).filter(Boolean)
     : []),
 ];
+
+// Leg-2 payout must be signed by this validator or touch this vault. Overridable for a rotation.
+export const MB_VALIDATOR = env.VITE_MB_VALIDATOR || DEFAULT_MB_VALIDATOR;
+export const MB_VAULT = env.VITE_MB_VAULT || DEFAULT_MB_VAULT;
 
 export const explorerTx = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
 export const explorerAddr = (a: string) => `https://explorer.solana.com/address/${a}?cluster=devnet`;

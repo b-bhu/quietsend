@@ -63,9 +63,9 @@ A NEAR user who wants to send USDC on Solana without a Solana wallet, seed phras
 
 ---
 
-## v2 for agents (PROPOSED, awaiting Bibhu's yes)
+## v2 for agents (APPROVED by Bibhu, 12 Nov 2026)
 
-Locked direction, not yet coded: a headless MCP server, a NEAR policy contract, and the private send we already have. Helius Rings stays last and optional. Nothing below is approved until Bibhu says yes.
+Approved direction: a headless MCP server, a NEAR policy contract, and the private send we already have. Helius Rings stays last and optional. Decisions: two Solana addresses (human and policy), over-cap requests are approved first and then signed fresh, Rust 1.95+ installed on the build box, contract account `policy.bibhu-usdc.testnet`.
 
 ### User
 A person who delegates sending to an agent (Grok Bot, Claude, ChatGPT, or a script). The agent must never hold the user's full NEAR key. The human still sets limits and approves anything over the cap.
@@ -144,7 +144,7 @@ Also add `llms.txt` and a LICENSE, and make the repo public only with Bibhu's ye
 - MPC is security, not privacy. A random path is not privacy.
 
 ### Build order and cut order if we slip
-Order: (1) rustup 1.95 + wasm + cargo-near on the box, (2) slim policy contract (path prefix, prepaid 1 yocto, per-transfer and daily limits, intent approval), (3) fund the new derived address, (4) MCP stdio + `npm run verify` + README/`llms.txt`, (5) wire the web app so Explorer can show a policy send, (6) Helius only if time remains.
+Order (two tracks in parallel): A) shared `core/`, MCP stdio server, `npm run verify`, `llms.txt`, LICENSE; B) Rust 1.95 + wasm + cargo-near, slim policy contract, deploy on testnet, fund the policy-mode address, end-to-end policy send. Then (5) wire the web app so Explorer can show a policy send, (6) Helius only if time remains.
 
 Cut, last first:
 1. Helius Rings.
@@ -161,4 +161,4 @@ Rough time, given about two days left: MCP + verify script, half a day, low risk
 - Shared contract account name (working name: `policy.bibhu-usdc.testnet`).
 - OK to install Rust 1.95+ and the wasm target on this box?
 - Over-cap flow as intent-then-resign, not sign-and-wait?
-- Public repo, LICENSE, and any hosted demo still need an explicit yes. Local commits stay unpushed until then.
+- Making the repo public, and any hosted demo, still need an explicit yes. Every push needs his yes.

@@ -8,6 +8,11 @@ const root = dirname(fileURLToPath(import.meta.url));
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@quietsend/core": resolve(root, "../core/index.ts"),
+    },
+  },
   server: {
     fs: { allow: [resolve(root, "..")] },
   },

@@ -60,3 +60,105 @@ A NEAR user who wants to send USDC on Solana without a Solana wallet, seed phras
 1. Explorer page reduced to plain Solana Explorer + NearBlocks links.
 2. Hide mode dropped to "roadmap".
 3. Stretch items.
+
+---
+
+## v2 for agents (PROPOSED, awaiting Bibhu's yes)
+
+Locked direction, not yet coded: a headless MCP server, a NEAR policy contract, and the private send we already have. Helius Rings stays last and optional. Nothing below is approved until Bibhu says yes.
+
+### User
+A person who delegates sending to an agent (Grok Bot, Claude, ChatGPT, or a script). The agent must never hold the user's full NEAR key. The human still sets limits and approves anything over the cap.
+
+### Core flow
+1. The human, once, with their wallet (full-access key, 1 yoctoNEAR): deploys or binds to the policy contract, sets per-transfer and daily limits, an optional recipient allowlist, and an approval cap, and adds a function-call access key that can only call this contract (zero deposit). They also prepay a tiny NEAR balance the contract uses to attach 1 yoctoNEAR to the signer.
+2. The agent (through the MCP server or a CLI) calls the policy contract with that function-call key: quote, then send (normal or hide recipient).
+3. The contract checks the caller, the limits, and the allowlist. It does **not** let the caller pick the full derivation path. It sets `path` to `<caller>/solana-1`, then cross-contract calls `v1.signer-prod.testnet` `sign` with `payload_v2: {Eddsa: <hex>}`, `domain_id: 1`, 1 yoctoNEAR, and at least 15 Tgas on the sign receipt.
+4. The signer yields until the MPC responds, then resumes and returns the signature to the contract's callback. The MCP server reads that signature, attaches it, and broadcasts on Solana devnet.
+5. `get_receipt` returns a machine-readable receipt, including the PUBLIC/HIDDEN table, for the agent or a judge to check.
+
+If the send is over the cap, or the recipient is not allowed, the contract does **not** sign. It stores an intent (recipient, amount, mode). The human approves that intent in their wallet (1 yoctoNEAR). The agent then retries with a fresh Solana transaction: approving first and signing later, because a Solana blockhash only lasts about 60–90 seconds.
+
+### Address change (important)
+Today the Solana address is derived from `(user account, "solana-1")`, for example Bibhu's `6YNo…`. When the policy contract calls `sign`, the predecessor is the **contract**, so the address becomes `(policy contract, "<user>/solana-1")`. That is a **new** Solana address. Existing USDC at `6YNo…` does not move.
+
+Proposal: keep today's wallet path as **human mode** (same address as now). Agent sends go through the policy contract to the new address, which we fund on devnet for the demo. The MCP tools always say which address they are using.
+
+### MCP tools
+Local stdio server, reusing the tested web/script libraries. Suggested package: current MCP TypeScript SDK v2, `@modelcontextprotocol/server` (2.4.0 as of 12 Nov 2026). Log to stderr only.
+
+| Tool | Input | Output |
+| --- | --- | --- |
+| `get_address_and_balance` | optional `near_account` (defaults to the configured account) | NEAR account, mode (`human` or `policy`), Solana address, SOL, USDC |
+| `quote_send` | `recipient`, `amount_usdc`, `mode` (`normal` \| `hide_recipient`) | fee, total debit, under-limit or needs-approval, PUBLIC/HIDDEN preview |
+| `send` | same as quote | `signed` \| `needs_approval` \| `rejected`, NEAR tx, Solana tx(es), receipt id |
+| `get_receipt` | receipt id or tx hash | JSON receipt: legs, amounts, explorer links, a PUBLIC/HIDDEN table |
+
+The agent never sees a seed or private key. Credentials stay in a gitignored local env file.
+
+How a client adds it (stdio): Claude Desktop, Settings → Developer → Edit Config, then restart. File: `~/Library/Application Support/Claude/claude_desktop_config.json` on a Mac.
+
+```json
+{
+  "mcpServers": {
+    "quietsend": {
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/quietsend/mcp/server.ts"]
+    }
+  }
+}
+```
+
+Claude Code can use the same command, or a project `.mcp.json`. Whether Grok Bot can load a local stdio server the same way is **unverified**; judges and a one-command CLI are the first audience.
+
+### Policy contract (Rust, testnet only)
+Shared contract, for example `policy.bibhu-usdc.testnet` (name not fixed). Methods:
+
+- `new(mpc)` — init.
+- `deposit()` — payable; the human prepays the 1-yoctoNEAR the contract later attaches to the signer. Needed because a function-call key **cannot** attach a deposit (NEAR rejects it with `DepositWithFunctionCall`).
+- `set_policy(per_transfer, daily, cap, allowlist)` — owner only, require 1 yoctoNEAR.
+- `sign_for_caller(payload_hex, recipient, amount, mode)` — zero deposit from the caller. Checks limits, prefixes the path with the predecessor, attaches 1 yoctoNEAR, calls the signer, returns the signature (or `needs_approval`) in the callback.
+- `approve_intent(id)` — owner, 1 yoctoNEAR; marks a pending intent approved, does not sign a stale hash.
+- Views: `get_policy(account)`, `get_intent(id)`, maybe a helper for the derived path.
+
+Storage: owner, mpc account, prepaid deposits, per-user policy (limits, spent today, day bucket, allowlist), pending intents.
+
+Security we must not skip: never let the caller choose the full path; never sign an unchecked hash for a key the contract owns (for v2 we still accept an app-built Solana message, but the contract should at least bind it to this caller and this path, and we keep the existing MagicBlock pre-sign guards in the MCP/app). Whoever can deploy new code to the contract can sign for every user's policy address, so the contract account's full-access keys must stay tight.
+
+Toolchain gap (box, 12 Nov 2026): current `near-sdk` is 5.30.1 and `cargo-near` is 0.23.0; both need Rust 1.95. This box has system `rustc`/`cargo` 1.85.1, rustup 1.29.1 with **no** toolchain and no `wasm32-unknown-unknown`, and no `cargo-near`. Building the contract means installing a rustup toolchain 1.95+ and the wasm target first. Not done yet (large install).
+
+### Demo a screening agent can run
+One command, for example `npm run verify`, that a Claude Code / Codex reviewer can run from a public clone:
+
+1. Prints the policy (or demo) Solana address and the human-mode address.
+2. Points at already-published devnet transactions (Normal and Hide recipient) and checks, live, that the PUBLIC/HIDDEN table matches the chain.
+3. If a gitignored testnet key is present, also does a small policy-path send and prints a fresh receipt. If not, it says so and still exits 0 on the read-only checks.
+4. Expected output is spelled out in the README as "do X, see Y", with no marketing language.
+
+Also add `llms.txt` and a LICENSE, and make the repo public only with Bibhu's yes, by 14 Nov 2026, 23:59 UTC.
+
+### Honest privacy (same as v1, plus the contract)
+- **Normal**: sender, recipient and amount are public on Solana.
+- **Hide recipient**: breaks the direct sender-to-recipient link on Solana. Amounts, timing, and the NEAR sign call (now the policy contract + `<user>/solana-1`) are still public.
+- Limits, intents and approvals are public on NEAR. That is the point of a policy engine, not privacy.
+- MPC is security, not privacy. A random path is not privacy.
+
+### Build order and cut order if we slip
+Order: (1) rustup 1.95 + wasm + cargo-near on the box, (2) slim policy contract (path prefix, prepaid 1 yocto, per-transfer and daily limits, intent approval), (3) fund the new derived address, (4) MCP stdio + `npm run verify` + README/`llms.txt`, (5) wire the web app so Explorer can show a policy send, (6) Helius only if time remains.
+
+Cut, last first:
+1. Helius Rings.
+2. Web UI redesign (Bibhu's later idea).
+3. Recipient allowlist (keep amount limits).
+4. Remote/HTTP MCP (stdio + CLI are enough for judges).
+5. Daily limit and intent queue (keep a single per-transfer cap).
+6. Last resort, and it weakens Track 06: MCP + today's private send, contract only as a written design, no deploy.
+
+Rough time, given about two days left: MCP + verify script, half a day, low risk. Policy contract, about a day, medium-high risk (new Rust toolchain, address change, yield/callback, funding). README/llms.txt, a few hours, high value for AI screening.
+
+### Open questions for Bibhu
+- Confirm we keep **two** Solana addresses (human mode at `6YNo…`, agent/policy mode at a new funded address), rather than moving funds.
+- Shared contract account name (working name: `policy.bibhu-usdc.testnet`).
+- OK to install Rust 1.95+ and the wasm target on this box?
+- Over-cap flow as intent-then-resign, not sign-and-wait?
+- Public repo, LICENSE, and any hosted demo still need an explicit yes. Local commits stay unpushed until then.

@@ -58,7 +58,7 @@ export async function requestPrivateTransfer(from: string, to: string, amountBas
   if (unknown.length) throw new Error("MagicBlock transaction calls an unrecognised program, refusing to sign: " + unknown.join(", "));
 
   const feesTokens = BigInt(j.fees?.tokens ?? "0");
-  checkTopLevelInstructions(tx, keys);
+  checkTopLevelInstructions(tx, keys, ataOf(from));
   await checkEconomics(tx, from, amountBase, feesTokens);
 
   return {
@@ -78,10 +78,22 @@ const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 // Approve / SetAuthority / CloseAccount / Burn etc. are rejected outright.
 const TOKEN_IX_OK = new Set([3, 12]);
 
-function checkTopLevelInstructions(tx: VersionedTransaction, keys: string[]) {
+function checkTopLevelInstructions(tx: VersionedTransaction, keys: string[], senderAta: string) {
   for (const ix of tx.message.compiledInstructions) {
-    if (keys[ix.programIdIndex] === TOKEN_PROGRAM && !TOKEN_IX_OK.has(ix.data[0]))
+    const program = keys[ix.programIdIndex];
+    if (program == null)
+      throw new Error("MagicBlock transaction references a program via a lookup table; refusing to sign");
+    if (program !== TOKEN_PROGRAM) continue;
+    if (!ix.data.length || !TOKEN_IX_OK.has(ix.data[0]))
       throw new Error("MagicBlock transaction contains a direct SPL Token instruction type " + ix.data[0] + "; refusing to sign");
+    const source = keys[ix.accountKeyIndexes[0]];
+    if (source !== senderAta)
+      throw new Error("MagicBlock transaction would transfer from a token account that is not your USDC account; refusing to sign");
+    if (ix.data[0] === 12) {
+      const mint = keys[ix.accountKeyIndexes[1]];
+      if (mint !== USDC_MINT)
+        throw new Error("MagicBlock transaction would transfer a token other than USDC; refusing to sign");
+    }
   }
 }
 
@@ -95,6 +107,13 @@ const u64le = (b: Uint8Array, o: number) => new DataView(b.buffer, b.byteOffset 
  */
 export async function checkEconomics(tx: VersionedTransaction, from: string, amountBase: bigint, feesTokens: bigint) {
   const senderAta = ataOf(from);
+  const senderPk = new PublicKey(from);
+  const ataPk = new PublicKey(senderAta);
+  const [before, solBefore] = await Promise.all([
+    connection.getAccountInfo(ataPk),
+    connection.getBalance(senderPk),
+  ]);
+  if (!before || before.data.length < 165) throw new Error("Your USDC account could not be read; refusing to sign");
   const sim = await connection.simulateTransaction(tx, {
     sigVerify: false,
     replaceRecentBlockhash: true,
@@ -103,10 +122,9 @@ export async function checkEconomics(tx: VersionedTransaction, from: string, amo
   });
   if (sim.value.err) throw new Error("MagicBlock transaction fails in simulation: " + JSON.stringify(sim.value.err));
   const [after, sol] = sim.value.accounts ?? [];
-  const before = await connection.getAccountInfo(new PublicKey(senderAta));
-  const solBefore = await connection.getBalance(new PublicKey(from));
-  if (!after || !before || !sol) throw new Error("Simulation returned no account state; refusing to sign");
+  if (!after || !sol) throw new Error("Simulation returned no account state; refusing to sign");
   const post = Buffer.from(after.data[0], "base64");
+  if (post.length < 165) throw new Error("MagicBlock transaction would leave your USDC account in an unexpected state; refusing to sign");
   const pre = before.data;
   const spent = u64le(pre, 64) - u64le(post, 64);
   const maxSpend = amountBase + feesTokens + amountBase / 500n + 1n;

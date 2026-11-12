@@ -40,6 +40,7 @@ function useTx(sig?: string) {
 export default function Explorer({ id }: { id: string }) {
   const [rec, setRec] = useState<SendRecord | undefined>(getRecord(id));
   const [checking, setChecking] = useState(false);
+  const [checkMsg, setCheckMsg] = useState<string>();
   useEffect(() => {
     setRec(getRecord(id));
     const f = () => setRec(getRecord(id));
@@ -67,7 +68,7 @@ export default function Explorer({ id }: { id: string }) {
             <Pub>NEAR account <b>{rec.nearAccount}</b> called <code>sign</code> on <code>{SIGNER_CONTRACT}</code></Pub>
             <Pub>derivation path <code>{rec.path}</code> (so anyone can compute {short(rec.solanaAddress)} from the account)</Pub>
             <Pub>the bytes to sign (the Solana message)</Pub>
-            <Hid>no private key anywhere: 16 MPC nodes sign together</Hid>
+            <li>no Solana private key is stored on your device — 16 MPC nodes hold shares, and at least 11 must sign together</li>
           </ul>
         </div>
 
@@ -83,7 +84,7 @@ export default function Explorer({ id }: { id: string }) {
                 <Pub>
                   sender USDC change:{" "}
                   {leg1.v ? leg1.v.usdcChanges.filter((c) => c.owner === rec.solanaAddress).map((c) => formatUsdc(-c.deltaBase)).join(", ") + " USDC out" : "..."}{" "}
-                  (amount + 0.1% fee)
+                  (amount plus the MagicBlock fee{rec.mbFeeTokens ? `: ${formatUsdc(rec.mbFeeTokens)} USDC` : ""})
                 </Pub>
                 <Hid>
                   recipient {short(rec.recipient)} appears in this tx: <b data-testid="leg1-has-recipient">{appears(leg1.v, rec.recipient)}</b>
@@ -107,8 +108,11 @@ export default function Explorer({ id }: { id: string }) {
                   disabled={checking || !rec.leg1Sig}
                   onClick={async () => {
                     setChecking(true);
+                    setCheckMsg(undefined);
                     try {
-                      setRec({ ...(await pollLeg2(rec, () => {}, 30_000)) });
+                      const next = await pollLeg2(rec, (m) => setCheckMsg(m), 30_000);
+                      setRec({ ...next });
+                      if (!next.leg2Sig) setCheckMsg("No payout found in 30 s — try again later.");
                     } finally {
                       setChecking(false);
                     }
@@ -116,6 +120,7 @@ export default function Explorer({ id }: { id: string }) {
                 >
                   {checking ? "Checking..." : "Check again"}
                 </button>
+                {checkMsg && <span className="log" style={{ display: "block", marginTop: 8 }}>{checkMsg}</span>}
               </p>
             )}
             {leg2.err && <p className="err">{leg2.err}</p>}
@@ -140,7 +145,7 @@ export default function Explorer({ id }: { id: string }) {
             <li>A patient observer can still match the legs by amount and timing. A random path would not help: the path is in the public NEAR call.</li>
           </>
         ) : (
-          <li>Everything on Solana is public: sender, recipient and amount. Only the NEAR-key-free signing is special here.</li>
+          <li>Everything on Solana is public: sender, recipient and amount. Only the MPC signing without a Solana key is special here (a NEAR key still authorizes it).</li>
         )}
       </ul>
     </div>

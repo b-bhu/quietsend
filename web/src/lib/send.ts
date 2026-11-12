@@ -42,7 +42,13 @@ const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2
 /** Full send. Persists progress after every step so a reload / redirect can resume (see resumePending). */
 export async function runSend(inp: SendInput, log: Log = () => {}): Promise<SendRecord> {
   const amountBase = parseUsdc(inp.amountUi);
-  const to = new PublicKey(inp.recipient).toBase58(); // throws on invalid address
+  let to: string;
+  try {
+    to = new PublicKey(inp.recipient).toBase58();
+  } catch {
+    throw new Error("Not a valid Solana address");
+  }
+  if (!PublicKey.isOnCurve(to)) throw new Error("That address is a program address and can't hold a USDC token account");
   if (to === inp.solanaAddress) throw new Error("Recipient is your own derived address");
 
   const bal = await getBalances(inp.solanaAddress);
@@ -120,7 +126,10 @@ async function finish(rec: SendRecord, p: PendingSend, signature: Uint8Array, lo
   saveRecord(rec);
   const raw = attachSignature(p, rec.solanaAddress, signature);
   log("Signature verified locally; broadcasting to Solana devnet...");
-  rec.leg1Sig = await broadcast(raw, p.lastValidBlockHeight);
+  rec.leg1Sig = await broadcast(raw, p.lastValidBlockHeight, (sig) => {
+    rec.leg1Sig = sig;
+    saveRecord(rec);
+  });
   clearPending();
   log("Leg 1 confirmed: " + rec.leg1Sig);
   if (rec.mode === "normal") {
@@ -169,24 +178,36 @@ export async function pollLeg2(rec: SendRecord, log: Log = () => {}, timeoutMs =
  * After a reload (or a redirect-style wallet that navigated away), finish an interrupted send.
  * If the NEAR hash was never captured we cannot recover the signature: the pending send is dropped.
  */
+// Module-level lock: React StrictMode in dev mounts effects twice, and two overlapping
+// resumes of the same pending send can race (the loser may overwrite a settled record as failed).
+let resumeLock: Promise<SendRecord | undefined> | undefined;
+
 export async function resumePending(log: Log = () => {}): Promise<SendRecord | undefined> {
-  const p = loadPending();
-  if (!p) return undefined;
-  const rec = getRecord(p.id);
-  if (!rec) {
-    clearPending();
-    return undefined;
-  }
+  if (resumeLock) return resumeLock;
+  resumeLock = (async () => {
+    const p = loadPending();
+    if (!p) return undefined;
+    const rec = getRecord(p.id);
+    if (!rec) {
+      clearPending();
+      return undefined;
+    }
+    try {
+      if (!p.nearTxHash) throw new Error("Interrupted before the wallet returned a NEAR tx hash; nothing to resume. Send again.");
+      log("Resuming: reading the signature from NEAR tx " + p.nearTxHash);
+      const sig = await signatureFromNearTx(p.nearTxHash, rec.nearAccount);
+      return await finish(rec, p, sig, log);
+    } catch (e) {
+      rec.status = "failed";
+      rec.error = e instanceof Error ? e.message : String(e);
+      saveRecord(rec);
+      clearPending();
+      throw e;
+    }
+  })();
   try {
-    if (!p.nearTxHash) throw new Error("Interrupted before the wallet returned a NEAR tx hash; nothing to resume. Send again.");
-    log("Resuming: reading the signature from NEAR tx " + p.nearTxHash);
-    const sig = await signatureFromNearTx(p.nearTxHash, rec.nearAccount);
-    return await finish(rec, p, sig, log);
-  } catch (e) {
-    rec.status = "failed";
-    rec.error = e instanceof Error ? e.message : String(e);
-    saveRecord(rec);
-    clearPending();
-    throw e;
+    return await resumeLock;
+  } finally {
+    resumeLock = undefined;
   }
 }

@@ -33,7 +33,9 @@ export const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padS
 export const ataOf = (owner: string) => getAssociatedTokenAddressSync(MINT, new PublicKey(owner)).toBase58();
 
 export function parseUsdc(ui: string): bigint {
-  const m = /^(\d+)(?:\.(\d{1,6}))?$/.exec(ui.trim());
+  const s = ui.trim();
+  if (s.startsWith("-")) throw new Error("Amount must be greater than 0");
+  const m = /^(\d+)(?:\.(\d{1,6}))?$/.exec(s);
   if (!m) throw new Error("Enter a USDC amount with up to 6 decimals");
   const base = BigInt(m[1]) * 10n ** 6n + BigInt((m[2] ?? "").padEnd(6, "0"));
   if (base <= 0n) throw new Error("Amount must be greater than 0");
@@ -110,8 +112,13 @@ export function attachSignature(u: { kind: "legacy" | "v0"; unsignedB64: string 
   return tx.serialize();
 }
 
-export async function broadcast(rawTx: Uint8Array, lastValidBlockHeight: number): Promise<string> {
+export async function broadcast(
+  rawTx: Uint8Array,
+  lastValidBlockHeight: number,
+  onSent?: (signature: string) => void,
+): Promise<string> {
   const sig = await connection.sendRawTransaction(rawTx, { skipPreflight: false, maxRetries: 5 });
+  onSent?.(sig);
   // Poll instead of connection.confirmTransaction(): that opens a websocket, which public devnet RPCs rate limit.
   for (;;) {
     const st = (await connection.getSignatureStatuses([sig])).value[0];
@@ -120,7 +127,7 @@ export async function broadcast(rawTx: Uint8Array, lastValidBlockHeight: number)
     if ((await connection.getBlockHeight("confirmed")) > lastValidBlockHeight) {
       const again = (await connection.getSignatureStatuses([sig], { searchTransactionHistory: true })).value[0];
       if (again && !again.err) return sig;
-      throw new Error("Transaction not confirmed before its blockhash expired");
+      throw new Error("Transaction not confirmed before its blockhash expired (signature " + sig + ")");
     }
     await new Promise((r) => setTimeout(r, 1500));
   }

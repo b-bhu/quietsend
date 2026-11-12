@@ -36,7 +36,9 @@ export const MB_ALLOWED_PROGRAMS = [
   "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1",
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
   "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57",
-  ...(env.VITE_MB_EXTRA_PROGRAMS ? env.VITE_MB_EXTRA_PROGRAMS.split(",") : []),
+  ...(env.VITE_MB_EXTRA_PROGRAMS
+    ? env.VITE_MB_EXTRA_PROGRAMS.split(",").map((s) => s.trim()).filter(Boolean)
+    : []),
 ];
 
 export const explorerTx = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;

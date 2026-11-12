@@ -98,7 +98,7 @@ export default function App() {
   return (
     <main>
       <h1>quietsend (devnet / testnet)</h1>
-      <p style={{ margin: "4px 0" }}>Send Solana USDC with only a NEAR account. No Solana key exists.</p>
+      <p style={{ margin: "4px 0" }}>Send Solana USDC with only a NEAR account. No Solana private key is stored anywhere.</p>
       <nav>
         {session ? (
           <>

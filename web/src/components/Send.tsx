@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Session } from "../App";
 import type { Mode } from "../lib/history";
+import { isAddr } from "../lib/inspect";
 import { runSend } from "../lib/send";
 
 export default function Send({ session }: { session: Session }) {
@@ -16,8 +17,10 @@ export default function Send({ session }: { session: Session }) {
     setErr(undefined);
     setLog([]);
     try {
+      const recipient = to.trim();
+      if (!isAddr(recipient)) throw new Error("Not a valid Solana address");
       const rec = await runSend(
-        { wallet: session.wallet, nearAccount: session.nearAccount, solanaAddress: session.solanaAddress, recipient: to.trim(), amountUi: amount, mode },
+        { wallet: session.wallet, nearAccount: session.nearAccount, solanaAddress: session.solanaAddress, recipient, amountUi: amount, mode },
         (m) => setLog((l) => [...l, m]),
       );
       location.hash = "#/tx/" + rec.id;
@@ -41,7 +44,7 @@ export default function Send({ session }: { session: Session }) {
       </label>
       <label style={{ margin: 0 }}>
         <input type="radio" style={{ width: "auto" }} checked={mode === "hide"} onChange={() => setMode("hide")} disabled={busy} /> Hide
-        recipient (MagicBlock private transfer: 2 legs, 0.1% fee)
+        recipient (MagicBlock, 2 legs, 0.1% fee — hides the direct link, not the amount)
       </label>
       <p>
         <button onClick={submit} disabled={busy || !to}>{busy ? "Working..." : "Send"}</button>

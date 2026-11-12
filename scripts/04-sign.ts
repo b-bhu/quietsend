@@ -76,7 +76,7 @@ async function main() {
   console.log("NEAR account:", accountId);
   console.log("Path:", DERIVATION_PATH);
   console.log("keyType:", KEY_TYPE, "domain_id:", DOMAIN_ID);
-  console.log("Deposit:", SIGN_DEPOSIT_YOCTONEAR.toString(), "yoctoNEAR (1 yoctoNEAR)");
+  console.log("Deposit:", SIGN_DEPOSIT_YOCTONEAR.toString(), "yoctoNEAR");
   console.log(
     "Gas:",
     SIGN_GAS.toString(),

@@ -12,7 +12,8 @@ import { KeyPair, type KeyPairString } from "@near-js/crypto";
 import { JsonRpcProvider } from "@near-js/providers";
 import { KeyPairSigner } from "@near-js/signers";
 import { PublicKey } from "@solana/web3.js";
-import { contracts } from "chainsig.js";
+import { actionCreators } from "@near-js/transactions";
+import { getTransactionLastResult } from "@near-js/utils";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import {
   DERIVED_ADDRESS,
@@ -102,18 +103,16 @@ async function main() {
   const provider = new JsonRpcProvider({ url: NEAR_RPC });
   const account = new Account(accountId, provider, signer);
 
-  const contract = new contracts.ChainSignatureContract({
-    networkId: "testnet",
-    contractId: SIGNER_CONTRACT,
-  });
-
+  // Same `sign` call chainsig.js makes (1 yoctoNEAR, 300 Tgas), sent directly so the NEAR tx hash is kept.
   const messageBytes = Buffer.from(messageHex, "hex");
-  const signatures = await contract.sign({
-    payloads: [messageBytes],
-    path: DERIVATION_PATH,
-    keyType: KEY_TYPE,
-    signerAccount: account,
+  const outcome = await account.signAndSendTransaction({
+    receiverId: SIGNER_CONTRACT,
+    actions: [actionCreators.functionCall("sign", request, SIGN_GAS, SIGN_DEPOSIT_YOCTONEAR)],
   });
+  const nearTxHash = outcome.transaction.hash as string;
+  console.log("NEAR tx hash:", nearTxHash);
+  console.log("NearBlocks: https://testnet.nearblocks.io/txns/" + nearTxHash);
+  const signatures = [getTransactionLastResult(outcome)];
 
   if (!signatures[0]) throw new Error("No signature returned from the signer contract");
   const signatureBytes = extractSignatureBytes(signatures[0]);
@@ -132,6 +131,7 @@ async function main() {
         signatureBase64: Buffer.from(signatureBytes).toString("base64"),
         verified: ok,
         derivedAddress: DERIVED_ADDRESS,
+        nearTxHash,
       },
       null,
       2,

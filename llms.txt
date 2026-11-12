@@ -9,7 +9,7 @@ Send Solana devnet USDC using only a NEAR testnet account, via NEAR Chain Signat
 3. The NEAR account asks `v1.signer-prod.testnet` to sign the message (Ed25519, domain 1, 1 yoctoNEAR, 300 Tgas).
 4. The signed transaction is broadcast to Solana devnet.
 
-Human mode uses the user's NEAR account as the derivation predecessor (example: `bibhu-usdc.testnet` + `solana-1` = `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`). Policy/agent mode, once the policy contract is deployed, uses predecessor `policy.bibhu-usdc.testnet` and path `<user>/solana-1`, which is a different Solana address.
+Human mode uses the user's NEAR account as the derivation predecessor (example: `bibhu-usdc.testnet` + `solana-1` = `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`). Policy/agent mode uses predecessor `policy.bibhu-usdc.testnet` and path `<user>/solana-1`, a different Solana address (for `bibhu-usdc.testnet`: `5NdtJHkHvpayzyX4DmWniVNz7s1W4785BPqPuWJmo9Ao`). The policy contract is deployed at `policy.bibhu-usdc.testnet`.
 
 ## Honest privacy
 
@@ -69,7 +69,7 @@ Claude Desktop / Claude Code config (stdio):
 }
 ```
 
-`signer_backend=policy` calls `sign_for_caller` on `policy.bibhu-usdc.testnet`. If that contract is not deployed yet, the tool returns the error `policy contract not deployed yet`.
+`signer_backend=policy` calls `sign_for_caller` on `policy.bibhu-usdc.testnet` using a function-call key at `.keys/<account>.policy-fc.json` (never the full-access key). The contract returns `{ status: "signed" | "needs_approval" | "rejected" }`. If the contract is not deployed, the tool returns the error `policy contract not deployed yet`.
 
 ## Proven devnet transactions
 

@@ -49,9 +49,12 @@ export {
   mpcSignViaKey,
   mpcSignViaPolicy,
   parseSignValue,
+  viewPolicy,
+  NeedsApprovalError,
   type SigningWallet,
   type SignResult,
   type PolicySignResult,
+  type PolicyView,
 } from "./near";
 
 export {

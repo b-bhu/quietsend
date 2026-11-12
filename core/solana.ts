@@ -92,7 +92,12 @@ export interface Unsigned {
 }
 
 /** Normal send: SPL transferChecked (+ idempotent recipient ATA creation, paid by the sender). */
-export async function buildNormalTransfer(from: string, to: string, amountBase: bigint): Promise<Unsigned> {
+export async function buildNormalTransfer(
+  from: string,
+  to: string,
+  amountBase: bigint,
+  opts?: { alwaysCreateAta?: boolean },
+): Promise<Unsigned> {
   const connection = getConnection();
   const mint = getMint();
   const decimals = getConfig().usdcDecimals;
@@ -101,7 +106,9 @@ export async function buildNormalTransfer(from: string, to: string, amountBase: 
   const senderAta = getAssociatedTokenAddressSync(mint, fromPk);
   const recipientAta = getAssociatedTokenAddressSync(mint, toPk);
   const ixs = [];
-  if (!(await connection.getAccountInfo(recipientAta))) {
+  // The policy contract binds a normal payload to exactly (create-ATA-idempotent, TransferChecked).
+  // Human-mode still omits the create when the ATA already exists.
+  if (opts?.alwaysCreateAta || !(await connection.getAccountInfo(recipientAta))) {
     ixs.push(createAssociatedTokenAccountIdempotentInstruction(fromPk, recipientAta, toPk, mint));
   }
   ixs.push(createTransferCheckedInstruction(senderAta, mint, recipientAta, fromPk, amountBase, decimals));

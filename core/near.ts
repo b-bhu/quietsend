@@ -4,6 +4,7 @@ import { KeyPair, type KeyPairString } from "@near-js/crypto";
 import { JsonRpcProvider } from "@near-js/providers";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators } from "@near-js/transactions";
+import { getTransactionLastResult } from "@near-js/utils";
 import { FailoverRpcProvider, JsonRpcProvider as NearJsonRpcProvider } from "near-api-js";
 import { getConfig, onConfigChange } from "./config";
 
@@ -76,9 +77,29 @@ function decodeSuccessValue(raw: string): unknown {
 }
 
 export type SignResult =
-  | { kind: "signature"; signature: Uint8Array }
-  | { kind: "needs_approval"; intentId?: string; raw: unknown };
+  | { kind: "signature"; signature: Uint8Array; path?: string }
+  | { kind: "needs_approval"; intentId?: string; reason?: string; raw: unknown }
+  | { kind: "rejected"; reason: string; raw: unknown };
 
+export class NeedsApprovalError extends Error {
+  intentId?: string;
+  nearTxHash?: string;
+  reason?: string;
+  constructor(opts?: { intentId?: string; nearTxHash?: string; reason?: string }) {
+    super("needs_approval");
+    this.name = "NeedsApprovalError";
+    this.intentId = opts?.intentId;
+    this.nearTxHash = opts?.nearTxHash;
+    this.reason = opts?.reason;
+  }
+}
+
+/**
+ * Parse a signer or policy-contract result.
+ * Direct MPC: { scheme, signature: number[64] }
+ * Policy contract (serde tag = status): { status: "signed"|"needs_approval"|"rejected", ... }
+ *   signed: { status, signature: { scheme, signature: number[64] }, path, spent_today }
+ */
 export function parseSignValue(value: unknown): SignResult | undefined {
   if (value == null || value === "") return undefined;
   if (typeof value === "string") {
@@ -91,44 +112,65 @@ export function parseSignValue(value: unknown): SignResult | undefined {
     }
   }
   if (typeof value !== "object") return undefined;
-  const v = value as {
-    scheme?: string;
-    signature?: number[] | Uint8Array;
-    needs_approval?: boolean;
-    NeedsApproval?: unknown;
-    intent_id?: string;
-    intentId?: string;
-    id?: string;
-  };
-  if (v.needs_approval || v.NeedsApproval != null) {
-    const intent = v.intent_id ?? v.intentId ?? (typeof v.NeedsApproval === "object" && v.NeedsApproval && "id" in (v.NeedsApproval as object) ? String((v.NeedsApproval as { id: unknown }).id) : v.id);
-    return { kind: "needs_approval", intentId: intent != null ? String(intent) : undefined, raw: value };
+  const v = value as Record<string, unknown>;
+  const status = typeof v.status === "string" ? v.status.toLowerCase() : undefined;
+
+  if (status === "needs_approval" || v.needs_approval === true || v.NeedsApproval != null) {
+    const intent = v.intent_id ?? v.intentId ?? v.id;
+    return {
+      kind: "needs_approval",
+      intentId: intent != null ? String(intent) : undefined,
+      reason: v.reason != null ? String(v.reason) : undefined,
+      raw: value,
+    };
   }
-  if (v.signature) {
-    const sig = Uint8Array.from(v.signature);
-    if (sig.length !== 64) throw new Error("Unexpected signer response: signature length " + sig.length);
-    return { kind: "signature", signature: sig };
+  if (status === "rejected") {
+    return { kind: "rejected", reason: v.reason != null ? String(v.reason) : "rejected", raw: value };
+  }
+
+  // Direct MPC result, or contract wrapper { status: "signed", signature: { scheme, signature: [...] } }.
+  const inner = Array.isArray(v.signature) || v.signature instanceof Uint8Array ? v : v.signature;
+  if (inner && typeof inner === "object") {
+    const bytes = (inner as { signature?: unknown }).signature;
+    if (Array.isArray(bytes) || bytes instanceof Uint8Array) {
+      const sig = Uint8Array.from(bytes);
+      if (sig.length !== 64) throw new Error("Unexpected signer response: signature length " + sig.length);
+      return { kind: "signature", signature: sig, path: typeof v.path === "string" ? v.path : undefined };
+    }
+  }
+  return undefined;
+}
+
+function valueFromOutcome(o: Outcome): unknown {
+  const st = o.status;
+  if (st && typeof st === "object" && st.Failure) {
+    throw new Error("NEAR sign call failed: " + JSON.stringify(st.Failure));
+  }
+  try {
+    const last = getTransactionLastResult(o as Parameters<typeof getTransactionLastResult>[0]);
+    if (last != null && last !== "") return last;
+  } catch {
+    // no last result yet (tx still yielding) — fall through to SuccessValue
+  }
+  if (st && typeof st === "object" && typeof st.SuccessValue === "string" && st.SuccessValue.length) {
+    return decodeSuccessValue(st.SuccessValue);
   }
   return undefined;
 }
 
 function signResultFromOutcome(o: Outcome): SignResult | undefined {
-  const st = o.status;
-  if (st && typeof st === "object") {
-    if (st.Failure) throw new Error("NEAR sign call failed: " + JSON.stringify(st.Failure));
-    if (typeof st.SuccessValue === "string" && st.SuccessValue.length) {
-      const parsed = parseSignValue(decodeSuccessValue(st.SuccessValue));
-      if (parsed) return parsed;
-      throw new Error("Unexpected signer response: " + String(decodeSuccessValue(st.SuccessValue)).slice(0, 200));
-    }
-  }
-  return undefined;
+  const raw = valueFromOutcome(o);
+  if (raw == null) return undefined;
+  const parsed = parseSignValue(raw);
+  if (parsed) return parsed;
+  throw new Error("Unexpected signer response: " + String(typeof raw === "string" ? raw : JSON.stringify(raw)).slice(0, 200));
 }
 
 function signatureFromOutcome(o: Outcome): Uint8Array | undefined {
   const parsed = signResultFromOutcome(o);
   if (!parsed) return undefined;
   if (parsed.kind === "needs_approval") throw new Error("NEAR sign call returned needs_approval");
+  if (parsed.kind === "rejected") throw new Error("Policy rejected the send: " + parsed.reason);
   return parsed.signature;
 }
 
@@ -227,12 +269,39 @@ export async function mpcSignViaKey(
 }
 
 export type PolicySignResult =
-  | { status: "signed"; signature: Uint8Array; nearTxHash: string }
-  | { status: "needs_approval"; nearTxHash: string; intentId?: string };
+  | { status: "signed"; signature: Uint8Array; nearTxHash: string; path?: string }
+  | { status: "needs_approval"; nearTxHash: string; intentId?: string; reason?: string };
+
+export type PolicyView = {
+  per_transfer: string;
+  daily: string;
+  cap: string;
+  spent_today: string;
+  allowlist?: string[];
+  allow_hide_unverified?: boolean;
+};
+
+/** View get_policy on the policy contract. */
+export async function viewPolicy(accountId: string): Promise<PolicyView | "not_deployed" | "no_policy"> {
+  const cfg = getConfig();
+  try {
+    const p = await getProvider().callFunction({
+      contractId: cfg.policyContract,
+      method: "get_policy",
+      args: { account_id: accountId },
+    });
+    if (!p) return "no_policy";
+    return p as PolicyView;
+  } catch (e) {
+    if (isPolicyMissingError(e)) return "not_deployed";
+    throw e;
+  }
+}
 
 /**
  * Policy-mode sign: a function-call key calls sign_for_caller on the policy contract
  * with zero deposit. Throws a clear error if the contract is not deployed yet.
+ * The contract result is tagged { status: "signed" | "needs_approval" | "rejected" }.
  */
 export async function mpcSignViaPolicy(
   accountId: string,
@@ -262,17 +331,33 @@ export async function mpcSignViaPolicy(
   const nearTxHash = hashOf(outcome);
   if (!nearTxHash) throw new Error("Policy sign call returned no transaction hash");
   onHash?.(nearTxHash);
-  try {
-    const parsed = signResultFromOutcome(outcome);
-    if (parsed?.kind === "needs_approval") return { status: "needs_approval", nearTxHash, intentId: parsed.intentId };
-    if (parsed?.kind === "signature") return { status: "signed", signature: parsed.signature, nearTxHash };
-    const polled = await signatureFromNearTx(nearTxHash, accountId);
-    return { status: "signed", signature: polled, nearTxHash };
-  } catch (e) {
-    if (isPolicyMissingError(e) || (e instanceof Error && /needs_approval/.test(e.message))) {
-      if (isPolicyMissingError(e)) throw new Error(POLICY_NOT_DEPLOYED);
+
+  const apply = (parsed: SignResult | undefined): PolicySignResult | undefined => {
+    if (!parsed) return undefined;
+    if (parsed.kind === "needs_approval") return { status: "needs_approval", nearTxHash, intentId: parsed.intentId, reason: parsed.reason };
+    if (parsed.kind === "rejected") throw new Error("Policy rejected the send: " + parsed.reason);
+    return { status: "signed", signature: parsed.signature, nearTxHash, path: parsed.path };
+  };
+
+  const immediate = apply(signResultFromOutcome(outcome));
+  if (immediate) return immediate;
+
+  // Still yielding (MPC sign in flight): poll the same way a human-mode sign does,
+  // but accept a needs_approval / rejected value, not only a raw 64-byte signature.
+  const t0 = Date.now();
+  let lastErr: unknown;
+  while (Date.now() - t0 < 90_000) {
+    try {
+      const res = (await getProvider().viewTransactionStatus({ txHash: nearTxHash, accountId, waitUntil: "EXECUTED_OPTIMISTIC" })) as unknown as {
+        final_execution_outcome?: Outcome;
+      } & Outcome;
+      const applied = apply(signResultFromOutcome(res.final_execution_outcome ?? res));
+      if (applied) return applied;
+    } catch (e) {
+      if (e instanceof Error && (e.message.startsWith("NEAR sign call failed") || e.message.startsWith("Policy rejected"))) throw e;
+      lastErr = e;
     }
-    // If the tx succeeded but the value is needs_approval, parse again from chain.
-    throw e;
+    await new Promise((r) => setTimeout(r, 2000));
   }
+  throw new Error("Timed out waiting for policy sign result" + (lastErr ? ": " + String(lastErr) : ""));
 }

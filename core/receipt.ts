@@ -53,6 +53,19 @@ function usdcOut(view: TxView | undefined, owner: string): string | undefined {
   return hits.map((c) => formatUsdc(c.deltaBase)).join(", ");
 }
 
+function nearSignClaim(opts: {
+  nearAccount: string;
+  path: string;
+  signerContract: string;
+  policyContract: string;
+  signerBackend?: "human" | "policy";
+}): string {
+  if (opts.signerBackend === "policy") {
+    return `NEAR account ${opts.nearAccount} called sign_for_caller on ${opts.policyContract}, which called sign on ${opts.signerContract} with path ${opts.path} (anyone can recompute the Solana address)`;
+  }
+  return `NEAR account ${opts.nearAccount} called sign on ${opts.signerContract} with path ${opts.path} (anyone can recompute the Solana address)`;
+}
+
 export function privacyTable(opts: {
   mode: Mode;
   sender: string;
@@ -63,17 +76,26 @@ export function privacyTable(opts: {
   path: string;
   nearAccount: string;
   signerContract: string;
+  policyContract?: string;
+  signerBackend?: "human" | "policy";
   leg1?: TxView;
   leg2?: TxView;
 }): PrivacyRow[] {
-  const { mode, sender, recipient, recipientAta, amountUsdc, mbFeeUsdc, path, nearAccount, signerContract, leg1, leg2 } = opts;
+  const { mode, sender, recipient, recipientAta, amountUsdc, mbFeeUsdc, path, nearAccount, signerContract, policyContract, signerBackend, leg1, leg2 } = opts;
+  const nearClaim = nearSignClaim({
+    nearAccount,
+    path,
+    signerContract,
+    policyContract: policyContract ?? "",
+    signerBackend,
+  });
   if (mode === "normal") {
     return [
       { visibility: "PUBLIC", claim: `sender ${short(sender)}` },
       { visibility: "PUBLIC", claim: `recipient ${short(recipient)} and amount ${amountUsdc} USDC` },
       {
         visibility: "PUBLIC",
-        claim: `NEAR account ${nearAccount} called sign on ${signerContract} with path ${path} (anyone can recompute the Solana address)`,
+        claim: nearClaim,
       },
     ];
   }
@@ -109,7 +131,7 @@ export function privacyTable(opts: {
     },
     {
       visibility: "PUBLIC",
-      claim: `NEAR account ${nearAccount} called sign on ${signerContract} with path ${path} (anyone can recompute the Solana address)`,
+      claim: nearClaim,
     },
     {
       visibility: "PUBLIC",
@@ -187,6 +209,8 @@ export async function buildReceipt(
       path: rec.path,
       nearAccount: rec.nearAccount,
       signerContract: cfg.signerContract,
+      policyContract: cfg.policyContract,
+      signerBackend: opts?.signerBackend,
       leg1,
       leg2,
     }),

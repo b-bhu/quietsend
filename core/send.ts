@@ -66,6 +66,8 @@ export interface SendInput {
   recipient: string;
   amountUi: string;
   mode: Mode;
+  /** Always include create-ATA-idempotent so the policy contract's payload binding accepts the message. */
+  policyPayload?: boolean;
 }
 
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -116,7 +118,7 @@ export async function runSend(inp: SendInput, log: Log = () => {}, hooks?: SendP
       u = mb;
     } else {
       log("Building SPL transferChecked...");
-      u = await buildNormalTransfer(inp.solanaAddress, to, amountBase);
+      u = await buildNormalTransfer(inp.solanaAddress, to, amountBase, { alwaysCreateAta: !!inp.policyPayload });
     }
     const pending: PendingSend = {
       id: rec.id,

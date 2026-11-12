@@ -14,13 +14,15 @@ import {
   inspectTx,
   mpcSignViaKey,
   mpcSignViaPolicy,
+  NeedsApprovalError,
   parseUsdc,
   quotePrivacyPreview,
   runSend,
+  viewPolicy,
   type Mode,
   type Receipt,
 } from "../core/index.ts";
-import { DEFAULT_ACCOUNT, loadPrivateKey } from "./keys.ts";
+import { DEFAULT_ACCOUNT, loadPolicyKey, loadPrivateKey } from "./keys.ts";
 import { getStoredReceipt, saveReceipt } from "./receipts.ts";
 
 const log = (...args: unknown[]) => console.error("[quietsend]", ...args);
@@ -112,14 +114,35 @@ function createServer(): McpServer {
         } catch {
           // quote should still work if the RPC lookup fails
         }
-        let approval: "under_limit" | "needs_approval" | "policy_contract_not_deployed" = "under_limit";
+        let approval: "under_limit" | "needs_approval" | "rejected" | "policy_contract_not_deployed" = "under_limit";
         let approvalNote =
           backend === "human"
             ? "Human mode has no on-chain spending cap; the account key authorizes the sign call directly."
-            : "Policy limits are enforced by policy.bibhu-usdc.testnet when it is deployed.";
+            : "Policy limits are enforced by policy.bibhu-usdc.testnet.";
         if (backend === "policy") {
-          approval = "policy_contract_not_deployed";
-          approvalNote = "policy contract not deployed yet";
+          const policy = await viewPolicy(nearAccount);
+          if (policy === "not_deployed") {
+            approval = "policy_contract_not_deployed";
+            approvalNote = "policy contract not deployed yet";
+          } else if (policy === "no_policy") {
+            approval = "rejected";
+            approvalNote = `no policy set for ${nearAccount}; the owner must call set_policy first`;
+          } else {
+            const per = BigInt(policy.per_transfer);
+            const daily = BigInt(policy.daily);
+            const cap = BigInt(policy.cap);
+            const spent = BigInt(policy.spent_today);
+            if (amountBase > cap) {
+              approval = "rejected";
+              approvalNote = `amount exceeds the hard cap of ${formatUsdc(cap)} USDC`;
+            } else if (amountBase > per || spent + amountBase > daily) {
+              approval = "needs_approval";
+              approvalNote = `over the agent cap (per transfer ${formatUsdc(per)} USDC, daily ${formatUsdc(daily)} USDC, spent today ${formatUsdc(spent)} USDC); the owner must approve`;
+            } else {
+              approval = "under_limit";
+              approvalNote = `within policy (per transfer ${formatUsdc(per)} USDC, daily ${formatUsdc(daily)} USDC, spent today ${formatUsdc(spent)} USDC)`;
+            }
+          }
         }
         return textResult({
           nearAccount,
@@ -163,7 +186,7 @@ function createServer(): McpServer {
       const nearAccount = near_account || DEFAULT_ACCOUNT;
       const hide = asMode(mode);
       try {
-        const key = loadPrivateKey(nearAccount); // never logged
+        const key = backend === "policy" ? loadPolicyKey(nearAccount) : loadPrivateKey(nearAccount); // never logged
         const solanaAddress = await addressFor(nearAccount, backend);
         log(`send ${mode} ${amount_usdc} USDC via ${backend} from ${nearAccount} / ${solanaAddress.slice(0, 6)}…`);
 
@@ -173,7 +196,6 @@ function createServer(): McpServer {
           // runSend's sign callback is what actually calls the contract; we still need to
           // surface needs_approval without broadcasting.
           let policyStatus: "signed" | "needs_approval" | undefined;
-          let intentId: string | undefined;
           const rec = await runSend(
             {
               sign: async (message, onHash) => {
@@ -186,24 +208,30 @@ function createServer(): McpServer {
                 );
                 if (result.status === "needs_approval") {
                   policyStatus = "needs_approval";
-                  intentId = result.intentId;
-                  throw new Error("needs_approval");
+                  throw new NeedsApprovalError({ intentId: result.intentId, nearTxHash: result.nearTxHash, reason: result.reason });
                 }
                 policyStatus = "signed";
                 return { signature: result.signature, nearTxHash: result.nearTxHash };
               },
               nearAccount,
-              path: backend === "policy" ? `${nearAccount}/solana-1` : undefined,
+              path: `${nearAccount}/solana-1`,
               solanaAddress,
               recipient,
               amountUi: amount_usdc,
               mode: hide,
+              policyPayload: true,
             },
             (m) => log(m),
           );
           const receipt = await buildReceipt(rec, { signerBackend: "policy" });
           saveReceipt(receipt);
-          return textResult({ status: policyStatus ?? "signed", receiptId: rec.id, receipt });
+          return textResult({
+            status: policyStatus ?? "signed",
+            receiptId: rec.id,
+            nearTx: rec.nearTxHash,
+            solanaTx: rec.leg1Sig,
+            receipt,
+          });
         }
 
         const rec = await runSend(
@@ -229,8 +257,18 @@ function createServer(): McpServer {
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        if (message === "needs_approval") {
-          return textResult({ status: "needs_approval", nearAccount, mode, recipient, amount_usdc });
+        if (e instanceof NeedsApprovalError || message === "needs_approval") {
+          const extra = e instanceof NeedsApprovalError ? e : undefined;
+          return textResult({
+            status: "needs_approval",
+            nearAccount,
+            mode,
+            recipient,
+            amount_usdc,
+            intentId: extra?.intentId,
+            nearTx: extra?.nearTxHash,
+            reason: extra?.reason,
+          });
         }
         if (message.includes("policy contract not deployed yet")) {
           return errResult("policy contract not deployed yet");

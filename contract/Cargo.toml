@@ -1,0 +1,25 @@
+[package]
+name = "quietsend-policy"
+version = "0.1.0"
+edition = "2021"
+description = "quietsend policy contract: limits, allowlist, intents and prepaid 1 yocto for NEAR Chain Signatures (testnet only)"
+license = "MIT"
+repository = "https://github.com/b-bhu/quietsend"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.30"
+bs58 = { version = "0.5", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+near-sdk = { version = "5.30", features = ["unit-testing"] }
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

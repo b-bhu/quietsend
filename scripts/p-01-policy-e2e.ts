@@ -77,7 +77,7 @@ async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
 
   const owner = new Account(NEAR_ACCOUNT, provider, new KeyPairSigner(readKey(resolve(ROOT, ".keys", `${NEAR_ACCOUNT}.json`))));
-  const view = <T = any>(method: string, args: object) => provider.callFunction<T>(POLICY, method, args);
+  const view = <T = any>(method: string, args: object) => provider.callFunction(POLICY, method, args) as Promise<T>;
 
   // ---- 1. policy + prepaid ----
   const cur: any = await view("get_policy", { account_id: NEAR_ACCOUNT });

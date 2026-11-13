@@ -75,10 +75,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             <span>Send so that no single transaction names you and the recipient together.</span>
           </li>
           <li>
-            <b>Checked before signing</b>
+            <b>Agent ready, with limits</b>
             <span>
-              Every transaction is simulated and checked before your NEAR account signs it. Nothing moves
-              without your approval.{" "}
+              Plug an agent in over MCP. A NEAR contract caps what it can spend per transfer and per day,
+              and holds anything over that for you to approve.{" "}
               <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">
                 Docs for agents
               </a>

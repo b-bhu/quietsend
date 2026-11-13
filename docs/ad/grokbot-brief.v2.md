@@ -37,21 +37,24 @@ This is a rewrite of `grokbot-brief.md`. The original file is unchanged.
   stays, because that feature is real. Source: product facts.
 - Shot 6 robot line is "How can I help?" Source: clarity; the old line was not
   an intentional joke.
-- **Shot 8 rewritten 13 Nov 2026.** It used to say "Set your limits!" and show
-  a "20 MAX / 100 A DAY" sticker. There is no limit system in the code, so that
-  was an unbacked claim. Shot 8 is now Mike inspecting the transaction with a
-  magnifying glass and stamping it REFUSED, which is what the guard actually
-  does. Source: product facts, corrected.
-- **Shot 9 rewritten 13 Nov 2026.** There are no limits to be over, so the
-  line is no longer about a threshold. The robot reaches for the money, Mike
-  puts a hand on it, and the point is that nothing moves without the human's
-  wallet approval. The robot still freezes mid-reach and waits. Source: product
-  facts, corrected.
-- **Corrected 13 Nov 2026.** The note here used to say the MCP plug-in and the
-  limits "already work on testnet". That was false: neither exists in the code.
-  Shots 7 to 9 now show agent approval and pre-sign inspection, both real. The
-  "FOR AGENTS" tag stays; it describes the audience, not an unbuilt feature.
-  Source: repo audit.
+- **Shot 8: restored 13 Nov 2026 (second pass).** The limits are real and
+  deployed; an earlier pass removed them in error. The sticker gag stands, with
+  the numbers the contract enforces: **1 a transfer, 3 a day**. The old brief's
+  "20 MAX / 100 A DAY" was invented and must not come back. Source: live
+  `get_policy` on `policy.bibhu-usdc.testnet`.
+- **Shot 9: restored 13 Nov 2026 (second pass), amount corrected.** The robot
+  asks for **two**: over the 1-per-transfer limit, under the 3 daily limit and
+  the 5 hard cap, so the contract returns `NeedsApproval` and holds the intent
+  for the owner. That is a wait, which is what the shot shows. The original
+  "ten thousand" and the interim "fifty" would both be over the hard cap and
+  rejected outright, which the freeze would misrepresent. Source: contract
+  `evaluate()` and live policy values.
+- **Corrected twice; this is the final state (13 Nov 2026).** The MCP plug-in
+  and the limits DO work on testnet: `mcp/server.ts` and the policy contract at
+  `policy.bibhu-usdc.testnet`. An interim pass removed them after auditing only
+  one branch; the work was on another and is now merged. Shots 7 to 9 advertise
+  them as working, with no "coming soon" tag, and the "FOR AGENTS" tag stays.
+  Source: merged repo, live contract state.
 - Shortened shot 10 to 10 words so it fits the 12-word lip-sync rule, while
   keeping "It's on testnet". Source: hard rule 6.
 - Shots 2 and 3 no longer pour keys and brown leather wallets. The bucket
@@ -142,26 +145,40 @@ call the product private or anonymous without saying exactly what is hidden.
 "Hide who you paid" is accurate. "Private", "anonymous" or "untraceable" is
 not, unless qualified.
 
-**Corrected 13 Nov 2026. The previous version of this paragraph was wrong.**
-There is no spending-limit system and no MCP integration in the code. Do not
-mention MCP, a per-transfer limit, a daily limit, a policy or a hard cap
-anywhere in the ad. Shots 7 to 9 have been rewritten below.
+**Corrected twice. Read this version only (13 Nov 2026, second pass).**
 
-What IS built, tested and shown instead:
+An earlier pass removed the MCP and limit claims as unbuilt. That was wrong:
+the work existed on another branch and is now merged. Both features are real
+and deployed. The numbers below are read from the live contract, not invented.
 
-1. **Every send needs the human's wallet approval.** The agent cannot move
-   anything by itself. This is not a policy setting; it is how the thing works.
-   A NEAR function-call access key cannot attach a deposit, and the signer
-   requires 1 yoctoNEAR, so an agent key literally cannot reach the signer.
-2. **The transaction is inspected and simulated before it is signed.** The
-   third party that builds the transaction is not trusted. Anything that would
-   delegate the token account, change its owner, close it, burn the tokens,
-   call an unlisted program, or move more than the amount plus fee is
-   **refused**. 18 offline tests cover this; `npm test` proves it.
+**Deployed policy contract:** `policy.bibhu-usdc.testnet`. Live values for the
+demo account, confirmed on chain:
 
-So shot 8's gag becomes "I read the fine print and refuse it", which is true,
-and shot 9's "it waits for you" becomes true for a better reason: the human
-holds the key.
+- **1 USDC per transfer**
+- **3 USDC a day**
+- **5 USDC hard cap**
+
+The contract returns one of three outcomes, and the difference matters for the
+ad: **Allow** (signs), **NeedsApproval** (over per-transfer or over the daily
+limit: it is held as an intent and waits for the owner to call
+`approve_intent`), and **Reject** (over the hard cap: refused outright, no
+waiting). Shot 9 shows the middle case.
+
+**Why an agent cannot simply bypass it.** A NEAR function-call access key
+cannot attach a deposit, and `sign` requires 1 yoctoNEAR. So the agent's key
+cannot reach the signer at all — it can only reach the contract, and the
+contract decides. The restriction is used, not worked around.
+
+**MCP:** `mcp/server.ts`, run with `npm run mcp`. An agent connects over stdio.
+End-to-end proof of the whole flow (function-call key send, needs_approval,
+approve, fresh send): `scripts/p-01-policy-e2e.ts`.
+
+**Also true, and still shown:** the transaction is inspected and simulated
+before signing. Anything that would delegate the token account, change its
+owner, close it, burn the tokens, call an unlisted program or move more than
+amount plus fee is refused. 44 offline tests; `npm test`.
+
+Use the real numbers in the ad. Do not invent limits.
 
 Keep "It's on testnet" in the closing line. Do not imply mainnet or real
 funds.
@@ -296,9 +313,9 @@ the table in every shot, so he does not jump when the Robot enters. The left
 | 4 | 6 | One account, send | Empty table. Mike centre-right holds a tablet in both hands at chest height, screen facing camera, screen blank and softly glowing white | Mike holds the tablet up toward the camera and taps the blank screen three times with one finger, nodding as he talks. | Mike, fast and cheerful: "One NEAR account. Pick who, pick how much, send!" |
 | 5 | 6 | Hide who you paid | Same as 4, but the tablet is in his left hand and his right index finger touches the blank screen | Mike swipes one finger across the blank tablet screen from right to left, then throws his free hand up and laughs. | Mike, excited: "Solangel? Send. Hide who you paid. Go nuts, man!" |
 | 6 | 5 | The agent arrives | Mike centre-right behind the empty table, looking toward frame right; the right side of the frame is empty | The Robot man steps in from frame right, in front of the shelf, and stops behind the table on the right, next to Mike, the same height as Mike. He waves stiffly. Mike looks at him, surprised. | Robot, flat monotone: "Hello. I am a robot. How can I help?" |
-| 7 | 5 | Plug the agent in | Both behind the table: Mike centre-right holds an oversized grey plug with a thick cable; the Robot man stands on the right, chest lamp unlit, the blank white socket visible on the side of his torso that faces Mike | Mike pushes the oversized grey plug into the socket on the Robot's right side. The Robot's chest lamp switches on and glows green. Mike gives the camera a thumbs up. | Mike: "Hey, agent! Just plug yourself in!" |
-| 8 | 5 | Read the fine print | Both behind the table, Robot's chest lamp glowing green, the plug still in his side socket; Mike holds a long unrolled paper receipt and a big round magnifying glass | Mike runs the magnifying glass down the receipt, stops, shakes his head once at the camera, then stamps the paper hard. | Mike, suspicious then firm: "But I read the fine print! Nope!" |
-| 9 | 5 | It waits for you | Both behind the table; a glass jar full of gold coins on the table between them; the Robot's arm half raised toward the jar; chest lamp glowing green | The Robot slowly reaches one arm toward the jar. Mike calmly places his hand flat on the lid. The Robot freezes mid-reach and waits. Mike smiles at the camera. | Robot, flat monotone: "I would like to send fifty." Then Mike, friendly: "Not without you! It waits for you!" |
+| 7 | 5 | Plug the agent in | Both behind the table: Mike centre-right holds an oversized grey plug with a thick cable; the Robot man stands on the right, chest lamp unlit, the blank white socket visible on the side of his torso that faces Mike | Mike pushes the oversized grey plug into the socket on the Robot's right side. The Robot's chest lamp switches on and glows green. Mike gives the camera a thumbs up. | Mike: "Hey, agent! Just plug in with MCP!" |
+| 8 | 5 | Set the limits | Both behind the table, Robot's chest lamp glowing green, the plug still in his side socket; Mike holds a blank white round sticker the size of his palm | Mike presses the blank white round sticker firmly onto the centre of the Robot's chest with two fingers, then gives it one extra pat. The Robot looks down at the sticker. | Mike, quickly: "Set your limits! One a transfer, three a day!" |
+| 9 | 5 | Over the limit, it waits | Both behind the table; a glass jar full of gold coins on the table between them; the Robot's arm half raised toward the jar; chest lamp glowing green | The Robot slowly reaches one arm toward the jar. Mike calmly places his hand flat on the lid. The Robot freezes mid-reach and waits. Mike smiles at the camera. | Robot, flat monotone: "I would like to send two." Then Mike, friendly: "Over the limit? It waits for you!" |
 | 10 | 5 | Close | Both stand behind the table: Mike centre-right pointing straight at camera; the Robot man on the right, chest lamp glowing green | Mike points straight at the camera with his right hand and holds the pose with a big grin. The Robot slowly raises one arm. | Mike, loud and fast: "It's on testnet. Nobody got hurt. Try this at home!" |
 
 Word counts, for the 12-word rule: (1) 6, (2) 5, (3) 3, (4) 9, (5) 9, (6) 9,
@@ -504,21 +521,21 @@ end frame, use those approved stills as the middle or last keyframe.
 
 [Physics & Details] The thick cable hangs and sways with weight. The chest lamp is unlit until the plug seats, then it glows green and stays green. The socket is on the costume, not on the table. Both men stay behind the table.
 
-[Audio] Mike: "Hey, agent! Just plug yourself in!"
+[Audio] Mike: "Hey, agent! Just plug in with MCP!"
 
 [SFX] A solid plastic click, then a rising electronic power-up hum.
 
 **8 — 5 sec** — start frame: `shot-08-start`
 
-**Rewritten 13 Nov 2026.** The old shot 8 pressed a "20 MAX / 100 A DAY" sticker on the Robot's chest and claimed a limit system that does not exist in the code. This version shows the pre-sign inspection, which is real and covered by 18 tests.
+**Restored 13 Nov 2026 (second pass).** An earlier pass replaced this shot because the limits looked unbuilt. They are built and deployed. The sticker gag is back, with the numbers the contract actually enforces: **1 per transfer, 3 a day** (hard cap 5). Do not write "20 MAX" or "100 A DAY".
 
-[Subject Motion / Action] Mike holds up a long paper receipt that unrolls almost to the table top and a big round magnifying glass, and runs the glass down the paper. He stops, raises his eyebrows at the camera, shakes his head once, then brings a rubber stamp down hard on the paper with one hand.
+[Subject Motion / Action] Mike presses the blank white round sticker firmly onto the centre of the Robot's chest with two fingers, then gives it one extra pat. The Robot looks down at the sticker.
 
-[Physics & Details] The receipt is a plain white paper strip with faint grey printed lines and no readable words. It curls and sways as it hangs. The magnifying glass is a simple black-handled round lens. The stamp is a plain wooden-handled rubber stamp; it leaves a red mark, and the word on the mark is not legible in camera. The chest lamp stays green. The plug stays in the side socket. Both men stay behind the table.
+[Physics & Details] The sticker is blank, with no lettering — the caption carries the numbers. It stays stuck on the cardboard torso. The chest lamp stays green. The plug stays in the side socket. Both men stay behind the table.
 
-[Audio] Mike, suspicious then firm: "But I read the fine print! Nope!"
+[Audio] Quickly: "Set your limits! One a transfer, three a day!"
 
-[SFX] A paper rustle as the glass travels, then one firm wooden stamp thud.
+[SFX] A flat tap on cardboard.
 
 **9 — 5 sec** — start frame: `shot-09-start`; mid frame: `shot-09-mid` (timed to Mike's one hand landing on the lid; the Robot must not be touching the jar)
 
@@ -526,11 +543,11 @@ end frame, use those approved stills as the middle or last keyframe.
 
 [Physics & Details] The jar does not tip or slide. Coins stay inside the jar. The Robot does not grab the jar and does not lower his arm. Both men stay behind the table. The reach is a standing person reaching down to the table, not a table-top prop.
 
-[Audio] The Robot, flat monotone: "I would like to send fifty." Then Mike, friendly: "Not without you! It waits for you!"
+[Audio] The Robot, flat monotone: "I would like to send two." Then Mike, friendly: "Over the limit? It waits for you!"
 
 [SFX] One short, mild game-show hold-tone when Mike's hand lands on the lid. Not a wrong-answer buzzer; this is a wait, not a refusal.
 
-**Rewritten 13 Nov 2026.** The old line was "Over the limit? It waits for you!", which implied a limit system that does not exist. The action is unchanged — the Robot reaches, Mike's hand lands, the Robot freezes and waits. The meaning is now that every send needs the human's wallet approval, which is how the product actually works.
+**Restored 13 Nov 2026 (second pass), with a corrected amount.** The robot asks for **two**, which is over the 1-per-transfer limit and under both the 3 daily limit and the 5 hard cap. The contract therefore returns `NeedsApproval` and holds it as an intent until the owner approves — a wait, which is what the shot shows. Do not use a number above 5: that is the hard cap and would be rejected outright, not held, so the hold-tone and the freeze would be wrong.
 
 If the two voices get mixed up, split this into two separate shots: first the
 Robot's line and the reach, then Mike's hand, his line, and the freeze.
@@ -586,9 +603,9 @@ Captions in heavy white type with a blue outline, one per shot:
 4. ONE ACCOUNT. SEND.
 5. SOLANGELS. HIDE WHO YOU PAID.
 6. (none)
-7. PLUG IN YOUR AGENT
-8. CHECKED BEFORE SIGNING
-9. NEEDS YOUR WALLET
+7. JUST PLUG IN WITH MCP
+8. 1 MAX · 3 A DAY
+9. WAITING FOR HUMAN
 10. DO TRY THIS AT HOME.
 
 Shots 2 and 3 now show crypto-wallet gear, so "A WALLET FOR EVERY CHAIN?"

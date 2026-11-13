@@ -58,9 +58,11 @@ export const QuietsendAd: React.FC = () => {
             <Video src={RAW} trimBefore={904} />
           </Settle>
         </TransitionSeries.Sequence>
-        {/* 8 Agent plugged in, chest goes green, thumbs up (src 42.71-48.25s) */}
-        {/* Caption for this clip: PLUG IN YOUR AGENT. Do NOT caption it "MCP" —
-            there is no MCP integration in the code. See docs/ad/grokbot-brief.v2.md. */}
+        {/* 8 Plug in with MCP, chest goes green, thumbs up (src 42.71-48.25s) */}
+        {/* Caption: JUST PLUG IN WITH MCP. The MCP server (mcp/server.ts) and the
+            policy contract (policy.bibhu-usdc.testnet) are deployed, so this is
+            accurate. Live limits are 1 per transfer / 3 a day; if a later clip
+            captions a figure, use those. See docs/ad/grokbot-brief.v2.md. */}
         <TransitionSeries.Sequence name="08 Plug" durationInFrames={133}>
           <Video src={RAW} trimBefore={1025} />
         </TransitionSeries.Sequence>

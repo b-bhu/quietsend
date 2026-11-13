@@ -153,12 +153,12 @@ export default function Demo() {
             <a className="link" href="/docs/SECURITY.md" target="_blank" rel="noreferrer">read the security model</a>.
           </li>
           <li>
-            <b>Plugging an agent in?</b>{" "}
+            <b>Plugging an agent in?</b> An agent goes through the MCP server and a NEAR policy contract
+            that caps spend per transfer and per day and holds the rest for approval —{" "}
             <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">
               Integrating
             </a>{" "}
-            covers the one function to call — and the NEAR deposit rule that stops a function-call key from
-            reaching the signer at all.
+            has the details. These checks are the layer below that, on the transaction itself.
           </li>
         </ul>
       </div>

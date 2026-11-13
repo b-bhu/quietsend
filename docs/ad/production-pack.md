@@ -28,9 +28,9 @@ Who it speaks to: ETH bros and Solangels (shot 5), developers and agents (the Ro
 | 4 | 6 | Mike | "One NEAR account. Pick who, pick how much, send!" | Holds up a tablet and taps it. App footage: the form, then "Sent" | ONE ACCOUNT. SEND. |
 | 5 | 6 | Mike | "ETH bro? Solangel? Send. Hide who you paid. Go nuts, man!" | Swipes the tablet. App footage: the Hide recipient switch, then the receipt with the recipient marked HIDDEN | ETH BROS. SOLANGELS. GO NUTS. plus fine-print crawl |
 | 6 | 5 | Robot | "Hello. I am a robot. How can I do it?" | Mike lifts the small cardboard Robot onto the table | none |
-| 7 | 5 | Mike | "Hey, agent! Just plug yourself in!" | Mike pushes a big plug into the socket on the table; the Robot's chest light turns green | PLUG IN YOUR AGENT |
-| 8 | 5 | Mike | "But I read the fine print! Nope!" | Runs a magnifying glass down a long paper receipt, shakes his head, stamps it | CHECKED BEFORE SIGNING |
-| 9 | 5 | Robot, then Mike | "I would like to send fifty." / "Not without you! It waits for you!" | Robot's arm reaches for a jar of coins; Mike calmly puts his hand on the lid | NEEDS YOUR WALLET |
+| 7 | 5 | Mike | "Hey, agent! Just plug in with MCP!" | Mike pushes a big plug into the socket on the table; the Robot's chest light turns green | JUST PLUG IN WITH MCP |
+| 8 | 5 | Mike | "Set your limits! One a transfer, three a day!" | Presses a blank round sticker on the Robot's chest | 1 MAX · 3 A DAY |
+| 9 | 5 | Robot, then Mike | "I would like to send two." / "Over the limit? It waits for you!" | Robot's arm reaches for a jar of coins; Mike calmly puts his hand on the lid | WAITING FOR HUMAN |
 | 10 | 5 | Mike | "It's on testnet. No one got hurt in this stunt. Do try this at home!" | Mike points at camera with a big grin | DO TRY THIS AT HOME |
 
 **Fine-print crawl for shot 5** (small text scrolling fast along the bottom, read by a speed-talking voice): "Amount and timing still visible. A patient observer could guess. Hides who you paid, not that you paid."
@@ -187,7 +187,7 @@ NO MUSIC.
 ```
 [Action] Mike pushes the oversized grey plug into the socket on the right end of the table. The round lamp on the Robot's chest switches on and glows green. Mike gives the camera a thumbs up.
 [Physics] The thick cable hangs and sways with weight.
-[Audio] Mike says: "Hey, agent! Just plug yourself in!"
+[Audio] Mike says: "Hey, agent! Just plug in with MCP!"
 [SFX] A solid plastic click, then a rising electronic power-up hum.
 ```
 
@@ -195,7 +195,7 @@ NO MUSIC.
 
 ```
 [Action] Mike presses the blank white round sticker firmly onto the centre of the Robot's chest with two fingers, then gives it one extra pat. The Robot looks down at the sticker.
-[Audio] Mike says, suspicious then firm: "But I read the fine print! Nope!"
+[Audio] Mike says quickly: "Set your limits! One a transfer, three a day!"
 [SFX] A flat tap on cardboard.
 ```
 
@@ -203,7 +203,7 @@ NO MUSIC.
 
 ```
 [Action] The Robot slowly reaches one arm toward the glass jar of gold coins. Mike calmly places his hand flat on top of the jar. The Robot stops and lowers its arm. Mike smiles at the camera.
-[Audio] The Robot says in a flat monotone: "I would like to send fifty." Then Mike says, friendly: "Not without you! It waits for you!"
+[Audio] The Robot says in a flat monotone: "I would like to send two." Then Mike says, friendly: "Over the limit? It waits for you!"
 [SFX] One short game-show wrong-answer buzzer when Mike's hand lands on the jar.
 ```
 
@@ -226,7 +226,7 @@ If the two voices get mixed up, split this into two shots: the Robot's line, the
    - Shot 5: the Hide recipient switch being turned on, then the receipt with the recipient marked HIDDEN.
 4. **Captions.** Add each caption from the script table as it is spoken. Use a heavy italic sans font (Anton, Impact or Bangers), white fill with a thick blue outline, popping in at 110% then settling to 100%. Keep them in the top two thirds of the frame.
 5. **Fine-print crawl** on shot 5: tiny white text scrolling right to left along the bottom at high speed.
-7. **Labels on props.** Leave the plug and the stamp unlabelled; the captions carry the meaning. Do not add "MCP" or any limit figure as tracked text — neither exists in the product.
+7. **Labels on props.** Add "MCP" on the plug (shot 7) as tracked text if it reads cleanly, or leave it and let the caption carry it. Leave the sticker blank — the caption carries the numbers. If any limit figure is burned in, it must be **1 MAX · 3 A DAY**, the values the deployed contract enforces. Never "20 MAX" or "100 A DAY".
 8. **Sound.** Add a cheap upbeat stock music bed under everything, and the buzzer in shot 9 if the model's own is weak. If any spoken line is garbled, replace it with a recorded or generated voiceover for that shot.
 9. **Grade.** Slightly raise saturation, soften the image a touch, and optionally round the corners to suggest an old TV.
 10. **Export two files** for the landing page:
@@ -241,7 +241,7 @@ If the two voices get mixed up, split this into two shots: the Robot's line, the
 
 ## Honest notes
 
-- **Corrected 13 Nov 2026.** This note used to read "Agent, policy and MCP work on testnet." That was false — there is no MCP integration and no spending-limit system in the code. Shots 7 to 9 were rewritten to show what is real: an agent is plugged in, the transaction is **inspected and simulated before signing** (18 offline tests cover this; `npm test`), and **nothing moves without the human's wallet approval** (a NEAR function-call key cannot attach the deposit the signer requires, so an agent key cannot reach it). Do not reintroduce MCP or limit claims anywhere in the ad.
+- **Agent, policy and MCP work on testnet.** Shots 6 to 9 advertise them as working, with no "coming soon" tag. `mcp/server.ts` is the agent front door; the policy contract is deployed at `policy.bibhu-usdc.testnet` and enforces **1 USDC per transfer, 3 a day, 5 hard cap** (live values, read from `get_policy`). Over the per-transfer or daily limit the contract holds the send for human approval; over the hard cap it refuses outright. Shot 9 shows the hold, which is why the robot asks for two and not a larger number. An interim pass on 13 Nov removed these claims after auditing only one branch — that was wrong, and the shots are restored. Use the real numbers; do not invent limits.
 - **What the shot 1 test showed (13 Nov 2026).** Grok made a 6-second clip with sound from a chat prompt. Mike's face and costume held for the whole clip, the wave worked, and Bibhu judged the voice good. Three problems:
   - Output is 3:2 (stills 768x515, video 672x448). Asking for 16:9 in the prompt is ignored, and the chat has no aspect-ratio control.
   - The camera drifted in slowly even though the prompt said locked off. By the end the table had almost left the frame.

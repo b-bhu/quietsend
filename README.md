@@ -43,7 +43,9 @@ No wallet or credentials needed for the first three.
 | The tests actually bite (not vacuous) | see [Proving the tests aren't vacuous](#proving-the-tests-arent-vacuous) | breaking the guard fails tests |
 | Scripts and guard typecheck | `npm run typecheck` | exits 0, no output |
 | The web app builds | `cd web && npm install && npx tsc -b` | exits 0 |
+| The privacy claims hold on chain | `npm run verify` | 20 PASS: leg 1 has no recipient, leg 2 has no sender, both verified against devnet |
 | Derivation is real, and cross-checked two independent ways | `npx tsx web/scripts/verify-lib.ts` | 16 PASS, 0 FAIL, exit 0 (needs network) |
+| An agent can send under policy | `npm run mcp`, or `npx tsx scripts/p-01-policy-e2e.ts` | function-call key send, `needs_approval`, approve, fresh send |
 | The guard refuses a real overcharge from the live MagicBlock API | same command, line "economic check rejects…" | refusal printed with the base-unit amounts |
 | A payout is accepted only on exact amount **and** MagicBlock's signer/vault | same command, lines "pollLeg2…" | wrong amounts ignored, real payout found |
 
@@ -148,7 +150,9 @@ The architectural fix, and the sharpest point in this design:
 
 > A NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR (`SIGN_DEPOSIT_YOCTO`, `web/src/lib/config.ts:17`). So an agent holding a function-call key **cannot reach the signer at all.** Route it through a contract that performs these checks on-chain and the architecture *enforces* the boundary instead of asking politely.
 
-Not built. It would change every derived address, because the predecessor becomes the contract. See [docs/next-version.md](docs/next-version.md).
+**This is built.** `contract/src/lib.rs` is deployed at `policy.bibhu-usdc.testnet`, and `mcp/server.ts` is the agent-facing front door (`npm run mcp`). The contract enforces a per-transfer limit and a daily limit, holds anything over them as an intent until `approve_intent`, and binds the payload it signs. End-to-end proof: `scripts/p-01-policy-e2e.ts`.
+
+Addresses differ between the two paths: policy mode derives from predecessor `policy.bibhu-usdc.testnet` with path `<user>/solana-1`, not from the user's own account. See [llms.txt](llms.txt).
 
 **Full threat model, including what the guard does not protect against: [docs/SECURITY.md](docs/SECURITY.md).**
 
@@ -158,7 +162,7 @@ Not built. It would change every derived address, because the predecessor become
 
 [docs/INTEGRATING.md](docs/INTEGRATING.md) — one function, one interface you implement, and a working non-browser wallet in about twenty lines. `web/scripts/verify-lib.ts` is the reference caller and has made real devnet sends.
 
-The thing to read first: a NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR. An agent holding a restricted key cannot reach the signer at all, so every send needs a full-access key — a human approving in their wallet. That is why this repo has no spending-limit system: the constraint is structural, not a setting.
+The thing to read first: a NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR — so an agent's restricted key cannot reach the signer directly. The policy contract turns that into the design: the agent's key only reaches the contract, and the contract decides whether to sign, applying a per-transfer limit, a daily limit, and human approval for anything above them.
 
 When the app is running, the docs are served at `/docs/` and `/llms.txt` points an agent at them.
 

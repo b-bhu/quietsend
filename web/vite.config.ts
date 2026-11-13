@@ -22,6 +22,11 @@ const markdownCharset = {
 
 export default defineConfig({
   plugins: [react(), markdownCharset],
+  resolve: {
+    alias: {
+      "@quietsend/core": resolve(root, "../core/index.ts"),
+    },
+  },
   server: {
     fs: { allow: [resolve(root, "..")] },
   },

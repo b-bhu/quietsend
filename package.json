@@ -1,15 +1,17 @@
 {
   "name": "near-usdc",
   "version": "1.0.0",
-  "description": "",
+  "description": "quietsend: send Solana devnet USDC with a NEAR testnet account",
   "main": "index.js",
   "scripts": {
     "test": "node --import tsx --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "verify": "tsx scripts/verify.ts",
+    "mcp": "tsx mcp/server.ts"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "@noble/curves": "^2.4.0",
@@ -21,6 +23,11 @@
     "dotenv": "^18.0.10",
     "near-api-js": "^7.2.0",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@modelcontextprotocol/server": "2.4.0",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0"
   }
 }

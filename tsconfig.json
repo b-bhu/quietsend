@@ -10,5 +10,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["scripts/**/*.ts", "shared/**/*.ts", "test/**/*.ts"]
+  "include": ["scripts/**/*.ts", "shared/**/*.ts", "core/**/*.ts", "mcp/**/*.ts", "test/**/*.ts"]
 }

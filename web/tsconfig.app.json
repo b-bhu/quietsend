@@ -5,6 +5,9 @@
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
     "types": ["vite/client"],
+    "paths": {
+      "@quietsend/core": ["../core/index.ts"]
+    },
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
@@ -22,5 +25,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "../shared"]
+  "include": ["src", "../shared", "../core"]
 }

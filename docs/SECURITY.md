@@ -109,11 +109,14 @@ Move the checks out of the page and into a NEAR contract that sits between the r
 
 The deposit rule above is what gives this real force: a function-call key **cannot** reach the signer, so an agent routed through such a contract has no way around it. The architecture enforces the boundary instead of asking politely.
 
-**Not built,** and deliberately not built in the hackathon window:
+**This is now built** (`contract/src/lib.rs`, deployed at `policy.bibhu-usdc.testnet`; agent front door `mcp/server.ts`). It enforces a per-transfer limit and a daily limit, holds anything above them as an intent until the owner calls `approve_intent`, and binds the payload it signs. `scripts/p-01-policy-e2e.ts` proves the flow end to end with a function-call key.
 
-- Every derived address changes, because the predecessor becomes the contract rather than the user's account. Anyone who has funded an address would have to move funds.
-- The gas cost of parsing a Solana message inside a NEAR contract is **unmeasured** — it is on the unverified list in [docs/next-version.md](next-version.md), and the whole plan depends on it.
-- A contract that resolves address lookup tables needs extra state or extra calls; today the guard simply refuses them.
+What that does and does not change:
+
+- **It is a real boundary for the agent path.** An agent's function-call key cannot reach the signer, so it cannot bypass the contract. The limits are enforced on-chain, not in a page.
+- **It does not fix the browser path.** A human sending from the web app still signs with a full-access key, and the browser-side guard above still applies, with all the limits stated in this document.
+- **Addresses differ.** Policy mode derives from predecessor `policy.bibhu-usdc.testnet` and path `<user>/solana-1`, which is a different Solana address from human mode.
+- **The contract is unaudited**, like the rest of this project.
 
 ---
 

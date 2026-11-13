@@ -4,7 +4,12 @@
 
 The ad says "plug yourself in". This is how.
 
-There is **no MCP server and no spending-limit system in this repo** — do not expect either. What exists is a library you can call from Node, and one interface you have to satisfy. `web/scripts/verify-lib.ts` is a working non-browser caller that has made real devnet sends; it is the reference implementation for everything below.
+There are **two** ways in:
+
+1. **The MCP server** (`npm run mcp`, `mcp/server.ts`) — an agent connects over stdio and sends through the **policy contract** deployed at `policy.bibhu-usdc.testnet`, which enforces a per-transfer limit and a daily limit and holds anything over them for human approval. This is the path the ad is talking about.
+2. **The library directly** (`runSend`) — for a Node process that holds a full-access key and wants no contract in the way. Documented below.
+
+`web/scripts/verify-lib.ts` is a working non-browser caller of the library and has made real devnet sends; it is the reference implementation for the direct path.
 
 ---
 
@@ -78,18 +83,22 @@ npx tsx web/scripts/verify-lib.ts
 
 ---
 
-## The constraint that will bite you
+## The constraint, and how the contract solves it
 
-**A NEAR function-call access key cannot do this.**
+`sign` on `v1.signer-prod.testnet` requires a **1 yoctoNEAR deposit**, and a NEAR function-call access key **cannot attach a deposit**. So the restricted key you would normally hand an agent cannot reach the signer directly. Only a full-access key can.
 
-`sign` on `v1.signer-prod.testnet` requires a **1 yoctoNEAR deposit** (`SIGN_DEPOSIT_YOCTO`, [`web/src/lib/config.ts:17`](../web/src/lib/config.ts)), and a function-call access key **cannot attach a deposit**. So the restricted key you would normally hand an agent cannot reach the signer at all. Only a full-access key can.
+That is exactly why the **policy contract** exists. The agent holds a function-call key scoped to the contract; the contract holds a prepaid yoctoNEAR balance and makes the signer call on the agent's behalf. The restriction is not worked around — it is used, because the agent's key cannot bypass the contract and reach the signer itself.
 
-This is not a policy we chose; it is how NEAR works, and it has two consequences:
+The contract (`contract/src/lib.rs`) then applies policy before it signs anything:
 
-1. **Every send needs a full-access key**, which in the web app means a human approving in their wallet. An agent cannot sign on its own. That is the real safety property here — stronger than any spending cap we could have written, and it is why this repo has no spending caps.
-2. **If you want an agent to operate unattended, you need a contract between the agent and the signer.** The agent calls your contract with a function-call key; the contract holds the full-access path and calls `sign`. That is the architectural fix described in [SECURITY.md](SECURITY.md) and [next-version.md](next-version.md). It is **not built here.**
+- **`per_transfer`** — a single send above it returns `NeedsApproval` instead of signing
+- **`daily`** — a send that would push the day's spend past it returns `NeedsApproval`
+- **`cap`** — `per_transfer` can never be set above it
+- **`approve_intent(id)`** — the owner releases a held intent, and only then is it signed
 
-Anyone planning an autonomous integration should read that before designing around it.
+So a held send genuinely "waits for you". End-to-end proof: `scripts/p-01-policy-e2e.ts` (function-call key send, `needs_approval`, approve, fresh send).
+
+**Addresses differ between the two paths.** Human mode derives from the user's own account (`you.testnet` + `solana-1`). Policy mode derives from predecessor `policy.bibhu-usdc.testnet` with path `<user>/solana-1`, which is a **different Solana address** — fund the right one. See `llms.txt` for a worked example of both.
 
 ---
 
@@ -158,6 +167,6 @@ Derivation is public math over the account ID and path, both of which appear in 
 
 ## Questions worth asking before you build on this
 
-- Are you happy that every send needs a full-access key today? If not, you need the contract described above, and it does not exist yet.
+- Agent or human? An agent should go through the MCP server and the policy contract; a trusted Node process can call `runSend` directly with a full-access key.
 - Do you need amounts hidden? `hide` mode hides the *link*, not the amount. See the privacy table in the [README](../README.md).
 - Are you relying on the guard as a security boundary? Don't — read [SECURITY.md](SECURITY.md) first.

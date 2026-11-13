@@ -11,16 +11,23 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
-const out = resolve(here, "../public/docs");
+const pub = resolve(here, "../public");
+const out = resolve(pub, "docs");
 
 const FILES = [
-  ["README.md", "README.md"],
-  ["docs/INTEGRATING.md", "INTEGRATING.md"],
-  ["docs/SECURITY.md", "SECURITY.md"],
-  ["docs/next-version.md", "next-version.md"],
+  ["README.md", "docs/README.md"],
+  ["docs/INTEGRATING.md", "docs/INTEGRATING.md"],
+  ["docs/SECURITY.md", "docs/SECURITY.md"],
+  ["docs/next-version.md", "docs/next-version.md"],
+  // The canonical agent entry point lives at the repo root; serve it at /llms.txt.
+  ["llms.txt", "llms.txt"],
 ];
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const [from, to] of FILES) copyFileSync(resolve(root, from), resolve(out, to));
-console.log(`synced ${FILES.length} docs -> web/public/docs`);
+for (const [from, to] of FILES) {
+  const dest = resolve(pub, to);
+  mkdirSync(dirname(dest), { recursive: true });
+  copyFileSync(resolve(root, from), dest);
+}
+console.log(`synced ${FILES.length} files -> web/public`);

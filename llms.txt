@@ -1,0 +1,84 @@
+# quietsend
+
+Send Solana devnet USDC using only a NEAR testnet account, via NEAR Chain Signatures (MPC). No Solana private key is stored. This is testnet and devnet only. Devnet USDC has no real value. Do not use this on mainnet or with real funds.
+
+## What it does
+
+1. A Solana address is derived from a NEAR account plus a path label (`solana-1`). The same account + path always yields the same address. The public NEAR sign call reveals both, so the link is not a secret.
+2. An unsigned Solana transaction is built: a normal SPL USDC transfer, or a MagicBlock hide-recipient transfer (two legs).
+3. The NEAR account asks `v1.signer-prod.testnet` to sign the message (Ed25519, domain 1, 1 yoctoNEAR, 300 Tgas).
+4. The signed transaction is broadcast to Solana devnet.
+
+Human mode uses the user's NEAR account as the derivation predecessor (example: `bibhu-usdc.testnet` + `solana-1` = `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`). Policy/agent mode uses predecessor `policy.bibhu-usdc.testnet` and path `<user>/solana-1`, a different Solana address (for `bibhu-usdc.testnet`: `5NdtJHkHvpayzyX4DmWniVNz7s1W4785BPqPuWJmo9Ao`). The policy contract is deployed at `policy.bibhu-usdc.testnet`.
+
+## Honest privacy
+
+This is not a privacy product in any unqualified sense.
+
+- Normal mode: sender, recipient and amount are public on Solana.
+- Hide-recipient mode (MagicBlock): breaks the direct sender-to-recipient link. Leg 1 (sender → vault) does not name the recipient. Leg 2 (vault → recipient), signed by validator `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57`, does not name the sender. The amount, the timing, and the NEAR sign call (account + path) are still public. A patient observer can still match the legs by amount and timing.
+- MPC is security, not privacy. A random path is not privacy.
+
+## How to run
+
+Requires Node.js 22+ (or a current Node 20). Testnet/devnet only.
+
+```bash
+npm install
+npm run verify
+```
+
+`npm run verify` is read-only. It prints the human-mode (and policy-mode) Solana address for `bibhu-usdc.testnet`, fetches already-published devnet transactions, and checks that the PUBLIC/HIDDEN claims match the chain. It exits 0 and prints `VERIFY PASSED` when the checks succeed. It does not need a key.
+
+If a gitignored key is present at `.keys/<account>.json` (or `NEAR_PRIVATE_KEY` is set), `npm run verify -- --send` also sends 0.1 USDC in normal human mode.
+
+## Web app (humans)
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open the printed localhost URL, connect a NEAR testnet wallet (Meteor), and send. The Explorer page shows one transfer in three columns (NEAR request, leg 1, leg 2) with PUBLIC/HIDDEN labels.
+
+A headless check of the web library (no browser):
+
+```bash
+npx tsx web/scripts/verify-lib.ts
+```
+
+## MCP server (agents)
+
+Local stdio server. Tools: `get_address_and_balance`, `quote_send`, `send` (mode `normal` or `hide_recipient`; signer backend `human` or `policy`), `get_receipt`. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
+
+```bash
+npx tsx mcp/server.ts
+```
+
+Claude Desktop / Claude Code config (stdio):
+
+```json
+{
+  "mcpServers": {
+    "quietsend": {
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/quietsend/mcp/server.ts"]
+    }
+  }
+}
+```
+
+`signer_backend=policy` calls `sign_for_caller` on `policy.bibhu-usdc.testnet` using a function-call key at `.keys/<account>.policy-fc.json` (never the full-access key). The contract returns `{ status: "signed" | "needs_approval" | "rejected" }`. If the contract is not deployed, the tool returns the error `policy contract not deployed yet`.
+
+## Proven devnet transactions
+
+- Normal: https://explorer.solana.com/tx/3hUZ5hSAwM8XBsxkM1nGVwE2G6UxdwBjS8qaD1wmj3L7WUo9z8bGsZdzVCCZKfi3RpnKQica5tCb16snroE4uKgt?cluster=devnet
+- Hide recipient, leg 1: https://explorer.solana.com/tx/2w2LRuLninNbG2MbWeCAczuJUaEW9yAxMhVR2GD1JmXEfWdBjvQYDETY6mPMX3uF1WqHPZnUB3CixhvfSLGfxKq7?cluster=devnet
+- Hide recipient, leg 2: https://explorer.solana.com/tx/5cTHDqYssFJx2cfUuXe3LYEpz5f2Q3MfVNuFuqp9Qrw4PJ3WhzqYG1h6ZAD9aEG9HxJpZNAHe3jSJCxN7v88dsUk?cluster=devnet
+
+Token: official Circle Solana devnet USDC `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (6 decimals).
+
+## License
+
+MIT, copyright b-bhu. See LICENSE.

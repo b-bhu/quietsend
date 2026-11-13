@@ -76,7 +76,13 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
           </li>
           <li>
             <b>Checked before signing</b>
-            <span>Every transaction is simulated and checked before your NEAR account signs it. Nothing moves without your approval.</span>
+            <span>
+              Every transaction is simulated and checked before your NEAR account signs it. Nothing moves
+              without your approval.{" "}
+              <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">
+                Docs for agents
+              </a>
+            </span>
           </li>
         </ul>
       </section>

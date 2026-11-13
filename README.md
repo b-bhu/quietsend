@@ -154,6 +154,16 @@ Not built. It would change every derived address, because the predecessor become
 
 ---
 
+## Calling it from an agent or a Node process
+
+[docs/INTEGRATING.md](docs/INTEGRATING.md) — one function, one interface you implement, and a working non-browser wallet in about twenty lines. `web/scripts/verify-lib.ts` is the reference caller and has made real devnet sends.
+
+The thing to read first: a NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR. An agent holding a restricted key cannot reach the signer at all, so every send needs a full-access key — a human approving in their wallet. That is why this repo has no spending-limit system: the constraint is structural, not a setting.
+
+When the app is running, the docs are served at `/docs/` and `/llms.txt` points an agent at them.
+
+---
+
 ## Layout
 
 ```
@@ -165,7 +175,9 @@ web/                          Vite + React + TypeScript app, no backend
   src/lib/                    derive, build, guard, sign, broadcast, poll, inspect
   scripts/verify-lib.ts       headless verification of src/lib against live devnet
 scripts/                      step-by-step Node scripts (00-create-account … 06-fund-user)
+docs/INTEGRATING.md           for agents and developers: the one function to call
 docs/SECURITY.md              threat model: what the guard does and does not protect
+web/public/llms.txt           agent-facing entry point, served at /llms.txt
 docs/next-version.md          merged technical review: where this goes next
 PLAN.md                       scope, risks, build status
 ```

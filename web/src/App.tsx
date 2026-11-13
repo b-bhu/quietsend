@@ -137,6 +137,7 @@ export default function App() {
         <a className="link" href="#/send">Send</a>
         <a className="link" href="#/history">History</a>
         <a className="link" href="#/demo">What the guard refuses</a>
+        <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">Docs</a>
         {session && <a className="link" href="#/account">Your address</a>}
         <span className="net">NEAR testnet · Solana devnet</span>
       </footer>

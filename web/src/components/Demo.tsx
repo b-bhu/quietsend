@@ -149,8 +149,16 @@ export default function Demo() {
           </li>
           <li>
             <b>The guard is not a security boundary.</b> It runs in this page, so whatever controls the page
-            controls the guard. It defends against a hostile transaction builder, not a hostile frontend. See{" "}
-            <span className="mono">docs/SECURITY.md</span>.
+            controls the guard. It defends against a hostile transaction builder, not a hostile frontend —{" "}
+            <a className="link" href="/docs/SECURITY.md" target="_blank" rel="noreferrer">read the security model</a>.
+          </li>
+          <li>
+            <b>Plugging an agent in?</b>{" "}
+            <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">
+              Integrating
+            </a>{" "}
+            covers the one function to call — and the NEAR deposit rule that stops a function-call key from
+            reaching the signer at all.
           </li>
         </ul>
       </div>

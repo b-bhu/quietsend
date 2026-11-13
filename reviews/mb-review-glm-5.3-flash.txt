@@ -1,0 +1,49 @@
+REVIEW: quietsend MagicBlock devnet scripts
+
+HIGH
+
+1. mb-03-send.ts:58 — settlement detection is a string inequality on tokenBalance() output.
+   tokenBalance() (mb-lib.ts:49-50) returns "0 (no token account)" when no ATA exists, otherwise a joined uiAmountString. The request sets initAtasIfMissing:true (mb-03-send.ts:18), so on a first run against a fresh recipient, merely CREATING the recipient ATA flips the string from "0 (no token account)" to "0" — the loop then prints "SETTLED", exits 0, and saves mb-result.json with no payout having ever landed. The same flip occurs if a second token account (e.g. a different token program) ever appears, since mb-lib.ts:50 joins multiple accounts with ",". Additionally, the condition never requires the new signatures collected at line 56 to be non-empty; in the false-positive case payoutSigs is [] and mb-04 silently inspects only leg1. Fix: compare parsed numeric balances and require sigs.length > 0 (or key off a specific payout signature). Severity: high — this is the harness's success verdict. Likelihood is conditional (fires when the recipient account is created during the run); with a pre-existing recipient ATA the check reduces to an actual balance change, which is fine.
+
+MEDIUM
+
+2. mb-01b-tee-auth.ts:23 — raw MagicBlock auth token persisted to out/mb-tee-auth.json.
+   saveOut writes `{ ..., gotToken: !!token, token }`. Console output at line 22 is deliberately redacted ("token received (redacted)"), but the same credential is then written in plaintext to disk. Mitigations: out/ is gitignored, and the file's own comment says the login returns a mock token. Two aggravating points: (a) nothing downstream consumes it — mb-02-request.ts:18 and mb-03-send.ts:21 call mbFetch with no token, so mb-lib.ts:25's token support is dead code; (b) if that token ever becomes a live bearer credential (or a later script starts using it), it sits unencrypted on disk. Suggest saving gotToken only (it's already in the object), or a dedicated restricted file actually wired into later scripts. Severity: medium (per your explicit "saved output" criterion; real but well-mitigated today).
+
+3. mb-03-send.ts:29 — `tx.signatures[0] = sig;` assumes index 0 is the MPC-derived signer. Nothing asserts `tx.message.staticAccountKeys[0].equals(new PublicKey(DERIVED_ADDRESS))` or `tx.message.header.numRequiredSignatures === 1`. mb-02-request.ts:24-25 logs exactly these fields for inspection, but mb-03 never asserts them. If the API ever returns a tx with a service fee payer or a second required signer, the MPC signature lands under the wrong account — the broadcast then fails at preflight (skipPreflight:false, so not silent), but as a confusing signature/keys-mismatch error. One cheap assertion fixes it. Severity: medium.
+
+4. mb-04-inspect.ts:6 — crash on the not-settled outcome. `res.payoutSigs.map(...)` throws TypeError when mb-result.json came from the timeout path, because mb-03-send.ts:64 deliberately omits payoutSigs. Since exit code 2 is a designed outcome and mb-04 is the obvious debugging next step, this breaks in the exact scenario you'd want it for. Guard with `res.payoutSigs ?? []`. Severity: medium.
+
+5. mb-03-send.ts:46-47 — confirmation result logged but never acted on. `conf.value.err` is not checked, so an on-chain leg-1 failure is treated as progress and the script burns the full 10-minute payout window before exiting 2 — indistinguishable from "API slow". Also `r.json.lastValidBlockHeight` is trusted from the build response and can be undefined/stale; the MPC sign at line 27 takes tens of seconds (the script logs elapsed time at line 28), so blockhash expiry between build and confirm is plausible — confirmTransaction then throws unhandled. Check conf.value.err and fail fast; rebuild if lastValidBlockHeight is missing or expired. Severity: medium.
+
+LOW
+
+6. mb-03-send.ts:34-42 — fallback-send semantics. A timeout-class failure from the own RPC doesn't prove the tx wasn't received; re-submitting via /v1/transaction/send can then return "already processed"-style errors and line 41 throws even though the tx landed. Also `s.json.signature` (line 42) is used with no presence check, so sigStr could be undefined and cascade into a malformed explorer URL (line 45) and confirm call (line 46). Theoretical — depends on RPC failure modes — but real. Severity: low.
+
+7. mb-02-request.ts:6 / mb-03-send.ts:7 — `Number(process.env.MB_AMOUNT ?? 1_000_000)` with no validation: a non-numeric env value becomes NaN and goes onto the wire; negative/fractional values pass through too. The base-units convention itself is known context, not flagged here. Severity: low.
+
+8. mb-02-request.ts:23 / mb-03-send.ts:24 — both assume `r.json.transactionBase64` exists and r.json is an object. mbFetch (mb-lib.ts:29) returns the raw string body whenever the API answers non-JSON, in which case deserialize fails with an opaque error. A field-presence check would localize the failure. Severity: low.
+
+9. mb-01b-tee-auth.ts:12,18 — if /auth/challenge returns JSON without `challenge`, the code signs the literal string "undefined" (TextEncoder coercion) and login fails with no hint why. Separately, challenge TTL vs a slow MPC sign: if the TEE expires challenges faster than NEAR finality, every legitimate attempt fails — whether that's reachable depends on the TEE's TTL, so theoretical. A non-empty-string assertion costs one line. Severity: low.
+
+10. mb-04-inspect.ts:10-11 — getParsedTransaction returns null for a missing/pruned tx; `t.transaction` then throws and all results collected so far are lost, because saveOut only runs at line 20. Also line 14 labels a missing pre-balance as "0" instead of "account created", which misrepresents exactly the created-ATA case this test cares about. Severity: low.
+
+11. Minor / theoretical:
+    - mb-03-send.ts:30 — the sendTo check runs after the expensive MPC sign; hoist above line 27 to avoid a wasted signing round-trip.
+    - mb-03-send.ts:13 — seenBefore uses limit 20; a busy recipient ATA could paginate older sigs out of view (display-only; the settle condition doesn't depend on it).
+    - mb-lib.ts:26 — `{ ...init, headers }` silently discards any caller-supplied init.headers; latent, since nothing currently passes headers.
+    - mb-03-send.ts:59 vs 64 — schema asymmetry: the settled path omits settled:true while the timeout path writes settled:false. Harmless today (mb-04 keys off payoutSigs presence), but don't add a consumer that reads `settled` on the happy path.
+    - Lint-level: mb-lib.ts:3 imports existsSync unused; mb-04-inspect.ts:12 `i` unused.
+    - mb-01b-tee-auth.ts:22 — theoretical: if the login endpoint ever returned a token inside a non-JSON body, JSON.parse would fail and the raw body (possibly containing it) is printed. Not current behavior.
+
+Secret check summary: no path prints or persists the NEAR private key. mb-lib.ts:35-36 reads it and passes it straight into the signer; failure paths expose at most the file path. Nothing else in these five files handles credential material. The logs persisted by mb-04 are public chain data — not credentials.
+
+What looks solid
+
+- NEAR key handling: one read site (mb-lib.ts:35-36), never logged, never saved; mpcSign is the only function that touches it, and its only externally visible failures are path-level errors.
+- mb-lib.ts:43 — local ed25519 verification of the MPC signature against the derived address before anything is broadcast. This catches MPC/encoding drift off-chain instead of via failed transactions, and doubles as a format check (a non-64-byte sig can't pass verify).
+- mb-01b:15 — negative control with a garbage signature before the real login, and a fresh challenge fetched for the real attempt (line 16) rather than reusing the one the garbage control consumed.
+- mb-01b:22 — console-side token redaction is deliberate and consistent between the success and failure branches.
+- mb-leg1.json strips transactionBase64 (mb-03-send.ts:48) — consistent with the unsigned tx being non-sensitive but keeps saved output lean.
+- mb-02 is genuinely non-mutating (build and inspect only), and it already surfaces numRequiredSignatures and the static key list — the exact fields mb-03 should assert before signing.
+- mb-04 passes maxSupportedTransactionVersion: 1 (correct for v0) and tolerates both string and PublicKey accountKeys (line 11) — usually a trap, handled here.

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quietsend · theme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* surfaces */
+  --bg: #101216;
+  --surface: #181a20;
+  --surface-2: #1f222a;
+  --line: rgba(222, 210, 241, 0.08);
+  --line-strong: rgba(222, 210, 241, 0.16);
+
+  /* text */
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.62);
+  --text-3: rgba(255, 255, 255, 0.38);
+
+  /* meaning */
+  --public: #f2b866;
+  --public-bg: rgba(242, 184, 102, 0.12);
+  --hidden: #8fd3b6;
+  --hidden-bg: rgba(143, 211, 182, 0.12);
+  --danger: #f08a7c;
+  --danger-bg: rgba(240, 138, 124, 0.12);
+
+  /* type */
+  --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --sans: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* shape */
+  --r-card: 28px;
+  --r-field: 16px;
+  --r-pill: 999px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1040px; margin: 0 auto; padding: 56px 16px 96px; }
+
+/* ---------- type ---------- */
+.display { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 7vw, 64px); line-height: 1.05; letter-spacing: -0.01em; margin: 0; }
+.title { font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.15; margin: 0; }
+.body { font-size: 16px; color: var(--text-2); margin: 0; max-width: 56ch; }
+.small { font-size: 14px; color: var(--text-2); margin: 0; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin: 0; }
+.mono { font-family: var(--mono); font-size: 14px; letter-spacing: 0; }
+.amount { font-family: var(--serif); font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
+.amount small { font-family: var(--sans); font-size: 16px; color: var(--text-2); margin-left: 8px; }
+
+/* ---------- layout ---------- */
+header { margin-bottom: 56px; }
+header .body { margin-top: 16px; }
+section { margin-top: 56px; }
+section > .eyebrow { margin-bottom: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 24px; }
+.grid { display: grid; gap: 16px; align-items: start; }
+.cols-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.cols-4 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+/* ---------- swatches ---------- */
+.swatch { border-radius: 20px; border: 1px solid var(--line); overflow: hidden; background: var(--surface); }
+.swatch i { display: block; height: 72px; }
+.swatch div { padding: 12px 14px; }
+.swatch b { display: block; font-size: 14px; font-weight: 600; }
+.swatch span { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+
+/* ---------- PUBLIC / HIDDEN ---------- */
+.tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 10px 0 8px; border-radius: var(--r-pill);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.tag svg { width: 14px; height: 14px; flex: none; }
+.tag.public { color: var(--public); background: var(--public-bg); }
+.tag.hidden { color: var(--hidden); background: var(--hidden-bg); }
+
+.fact { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.fact:first-of-type { border-top: 0; padding-top: 0; }
+.fact:last-of-type { padding-bottom: 0; }
+.fact .k { grid-column: 1 / -1; font-size: 13px; color: var(--text-3); }
+.fact .v { font-family: var(--mono); font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.fact .v.absent { font-family: var(--sans); color: var(--text-2); display: flex; align-items: center; gap: 10px; }
+.redact { display: inline-block; width: 96px; height: 14px; border-radius: 4px; flex: none;
+  background: repeating-linear-gradient(135deg, rgba(143,211,182,.38) 0 4px, rgba(143,211,182,.1) 4px 8px); }
+
+.verdict { margin-top: 20px; padding: 16px; border-radius: var(--r-field); background: var(--surface-2); font-size: 14px; color: var(--text-2); }
+.verdict b { color: var(--text); font-weight: 600; }
+
+/* ---------- buttons ---------- */
+.btn {
+  appearance: none; border: 0; cursor: pointer;
+  height: 52px; padding: 0 28px; border-radius: var(--r-pill);
+  font: 600 16px/1 var(--sans); letter-spacing: -0.01em;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+.btn:active { transform: scale(0.98); }
+.btn:focus-visible, .seg button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.btn.primary { background: var(--text); color: var(--bg); }
+.btn.primary:hover { background: #e6e6ea; }
+.btn.secondary { background: transparent; color: var(--text); border: 1px solid var(--line-strong); }
+.btn.secondary:hover { border-color: rgba(222,210,241,.32); }
+.btn.quiet { background: transparent; color: var(--text-2); padding: 0 12px; }
+.btn.quiet:hover { color: var(--text); }
+.btn.reject { background: var(--danger-bg); color: var(--danger); }
+.btn[disabled] { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; }
+.btn.block { width: 100%; }
+.btn.sm { height: 40px; padding: 0 18px; font-size: 14px; }
+
+/* ---------- fields ---------- */
+.field label { display: block; font-size: 13px; color: var(--text-2); margin-bottom: 8px; }
+.field input {
+  width: 100%; height: 52px; padding: 0 16px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line-strong); border-radius: var(--r-field);
+  font: 500 16px var(--sans); letter-spacing: -0.01em;
+}
+.field input.mono { font-family: var(--mono); font-size: 14px; }
+.field input::placeholder { color: var(--text-3); }
+.field input:focus { outline: 0; border-color: var(--text); }
+.field.error input { border-color: var(--danger); }
+.field .hint { font-size: 13px; color: var(--text-3); margin-top: 8px; }
+.field.error .hint { color: var(--danger); }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--r-field); }
+.seg button { appearance: none; border: 0; cursor: pointer; height: 44px; border-radius: 12px; background: transparent; color: var(--text-2); font: 600 15px var(--sans); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+
+.status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.dot.ok { background: var(--hidden); }
+.dot.wait { background: var(--public); animation: pulse 1.4s ease-in-out infinite; }
+.dot.fail { background: var(--danger); }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot.wait { animation: none; } .btn { transition: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="eye" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.8"/>
+  </symbol>
+  <symbol id="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6.3 3.8A6 6 0 0 1 8 3.5c4 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.7 2.2M10.9 11.6A5.8 5.8 0 0 1 8 12.5C4 12.5 1.5 8 1.5 8a11 11 0 0 1 2.7-3.1M2.5 2.5l11 11"/>
+  </symbol>
+</svg>
+
+<div class="page">
+  <header>
+    <p class="eyebrow">quietsend · V2 mock · step 1 of 4</p>
+    <h1 class="display" style="margin-top:16px">Theme</h1>
+    <p class="body">Colours, type and the small parts every screen is built from. Nothing here is a screen yet.</p>
+  </header>
+
+  <section>
+    <p class="eyebrow">Colour</p>
+    <div class="grid cols-4">
+      <div class="swatch"><i style="background:#101216"></i><div><b>Background</b><span>#101216</span></div></div>
+      <div class="swatch"><i style="background:#181a20"></i><div><b>Card</b><span>#181A20</span></div></div>
+      <div class="swatch"><i style="background:#1f222a"></i><div><b>Raised</b><span>#1F222A</span></div></div>
+      <div class="swatch"><i style="background:#ffffff"></i><div><b>Text and primary</b><span>#FFFFFF</span></div></div>
+      <div class="swatch"><i style="background:#f2b866"></i><div><b>Public</b><span>#F2B866</span></div></div>
+      <div class="swatch"><i style="background:#8fd3b6"></i><div><b>Hidden</b><span>#8FD3B6</span></div></div>
+      <div class="swatch"><i style="background:#f08a7c"></i><div><b>Error and reject</b><span>#F08A7C</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Type</p>
+    <div class="card stack">
+      <p class="display">Send dollars, see what shows.</p>
+      <p class="title">Instrument Serif for headlines and amounts</p>
+      <p class="body">Inter Tight for everything you read or tap. It stays calm at small sizes and holds up on a phone.</p>
+      <p class="mono">7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27</p>
+      <p class="small">JetBrains Mono for addresses and transaction ids only.</p>
+      <div class="amount">25.00<small>USDC</small></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Public and hidden</p>
+    <div class="grid cols-2">
+      <div class="card">
+        <div class="row" style="margin-bottom:20px">
+          <span class="tag public"><svg><use href="#eye"/></svg>Public</span>
+          <span class="tag hidden"><svg><use href="#eye-off"/></svg>Hidden</span>
+        </div>
+        <p class="small">Each label is a word, an icon and a colour, so it never relies on colour alone. A hidden value is drawn as a hatched bar, not as blank space.</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow" style="margin-bottom:16px">Step 1 · you to vault</p>
+        <div class="fact">
+          <span class="k">Sender</span>
+          <span class="v">7snf…nt27</span><span class="tag public"><svg><use href="#eye"/></svg>Public</span>
+        </div>
+        <div class="fact">
+          <span class="k">Amount</span>
+          <span class="v">25.025 USDC</span><span class="tag public"><svg><use href="#eye"/></svg>Public</span>
+        </div>
+        <div class="fact">
+          <span class="k">Recipient</span>
+          <span class="v absent"><span class="redact"></span>Not in this transaction</span><span class="tag hidden"><svg><use href="#eye-off"/></svg>Hidden</span>
+        </div>
+        <p class="verdict"><b>Direct link on-chain: no.</b> Someone patient can still guess it from the amount and the timing.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Buttons</p>
+    <div class="card stack">
+      <div class="row">
+        <button class="btn primary">Send USDC</button>
+        <button class="btn secondary">Connect NEAR wallet</button>
+        <button class="btn quiet">Cancel</button>
+        <button class="btn primary" disabled>Enter an amount</button>
+      </div>
+      <div class="row">
+        <button class="btn primary sm">Approve</button>
+        <button class="btn reject sm">Reject</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Fields</p>
+    <div class="grid cols-2">
+      <div class="card stack">
+        <div class="field">
+          <label for="to">Recipient</label>
+          <input id="to" class="mono" placeholder="Solana address">
+        </div>
+        <div class="field">
+          <label for="amt">Amount</label>
+          <input id="amt" inputmode="decimal" value="25.00">
+          <p class="hint">Balance 140.50 USDC</p>
+        </div>
+        <div class="field error">
+          <label for="bad">Recipient</label>
+          <input id="bad" class="mono" value="7snf-not-an-address">
+          <p class="hint">That is not a Solana address. Check it and paste again.</p>
+        </div>
+      </div>
+      <div class="card stack">
+        <div>
+          <p class="small" style="margin-bottom:8px">Mode</p>
+          <div class="seg" id="seg">
+            <button aria-pressed="true">Normal</button>
+            <button aria-pressed="false">Hide recipient</button>
+          </div>
+        </div>
+        <div class="stack" style="gap:10px">
+          <span class="status"><span class="dot ok"></span>Sent</span>
+          <span class="status"><span class="dot wait"></span>Waiting for step 2</span>
+          <span class="status"><span class="dot fail"></span>Failed. Nothing left your account.</span>
+          <span class="status"><span class="dot"></span>Not started</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+document.querySelectorAll('#seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#seg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+</script>
+</body>
+</html>

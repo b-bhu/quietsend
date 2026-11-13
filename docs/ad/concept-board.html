@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quietsend · ad concept board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Instrument+Serif&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #101216; --surface: #181a20; --surface-2: #1f222a;
+  --line: rgba(222, 210, 241, 0.08); --line-strong: rgba(222, 210, 241, 0.16);
+  --text: #fff; --text-2: rgba(255, 255, 255, 0.62); --text-3: rgba(255, 255, 255, 0.38);
+  --serif: "Instrument Serif", Georgia, serif; --sans: "Inter Tight", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 500 16px/1.5 var(--sans); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+p, h1, h2, h3, ul { margin: 0; }
+.page { max-width: 1080px; margin: 0 auto; padding: 48px 16px 80px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+h1 { font: 400 clamp(40px, 7vw, 64px)/1.05 var(--serif); margin-top: 12px; }
+.lede { margin-top: 12px; color: var(--text-2); max-width: 60ch; }
+.warn { margin-top: 20px; padding: 14px 18px; border-radius: 16px; background: rgba(242, 184, 102, .12); color: #f2b866; font-size: 14px; max-width: 70ch; }
+section { margin-top: 48px; }
+section > .eyebrow { margin-bottom: 14px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 28px; overflow: hidden; }
+.card .art { background: #8d9096; display: grid; place-items: center; padding: 20px 0 0; }
+.card .art svg { display: block; height: 380px; width: auto; max-width: 100%; }
+.card .body { padding: 20px 24px 24px; }
+.card h2 { font: 400 30px/1.1 var(--serif); }
+.card .role { color: var(--text-2); font-size: 14px; margin-top: 4px; }
+.card ul { margin-top: 14px; padding-left: 18px; color: var(--text-2); font-size: 14px; display: grid; gap: 4px; }
+.wide { border-radius: 28px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.wide svg { display: block; width: 100%; height: auto; }
+.wide .body { padding: 18px 24px 22px; font-size: 14px; color: var(--text-2); }
+.props { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.prop { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px; text-align: center; }
+.prop svg { width: 96px; height: 80px; }
+.prop b { display: block; font-size: 14px; font-weight: 600; margin-top: 6px; }
+.prop span { font-size: 12px; color: var(--text-3); }
+.caps { background: linear-gradient(#efe5cf, #e4d8bc); border-radius: 28px; padding: 36px 16px; display: flex; flex-wrap: wrap; gap: 28px 48px; justify-content: center; }
+.cap { font: italic 400 clamp(30px, 5vw, 56px)/1 "Anton", Impact, sans-serif; text-transform: uppercase; color: #fff; -webkit-text-stroke: 4px #1c50c8; paint-order: stroke fill; text-shadow: 0 .08em 0 #0c2a78; transform: rotate(-3deg); }
+.fine { width: 100%; text-align: center; font-size: 11px; color: #333; letter-spacing: 0; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- ===== Quiet Mike, full body, 200 x 420 ===== -->
+    <symbol id="mike" viewBox="0 0 200 420">
+      <ellipse cx="68" cy="398" rx="26" ry="9" fill="#1a1a1a"/><ellipse cx="132" cy="398" rx="26" ry="9" fill="#1a1a1a"/>
+      <path d="M42 256 L158 256 L152 392 L108 392 L100 292 L92 392 L48 392Z" fill="#7b8088"/>
+      <path d="M24 192 L20 250 L40 252 L46 200Z" fill="#e8b998"/><path d="M176 192 L180 250 L160 252 L154 200Z" fill="#e8b998"/>
+      <circle cx="30" cy="256" r="11" fill="#e8b998"/><circle cx="170" cy="256" r="11" fill="#e8b998"/>
+      <path d="M48 136 L20 188 L46 202 L62 160Z" fill="#c99720"/><path d="M152 136 L180 188 L154 202 L138 160Z" fill="#c99720"/>
+      <path d="M48 136 Q100 112 152 136 L162 250 Q100 264 38 250Z" fill="#d9a72a"/>
+      <rect x="40" y="246" width="120" height="11" fill="#141414"/><rect x="93" y="245" width="14" height="13" rx="2" fill="#c9c9c9"/>
+      <rect x="88" y="106" width="24" height="20" fill="#dcaa88"/>
+      <path d="M86 120 L100 140 L76 142Z" fill="#e8ba40"/><path d="M114 120 L100 140 L124 142Z" fill="#e8ba40"/>
+      <path d="M94 134 L106 134 L104 147 L96 147Z" fill="#17254a"/><path d="M96 147 L104 147 L111 222 L100 238 L89 222Z" fill="#1f2f55"/>
+      <circle cx="58" cy="74" r="8" fill="#dcaa88"/><circle cx="142" cy="74" r="8" fill="#dcaa88"/>
+      <ellipse cx="100" cy="70" rx="42" ry="46" fill="#e8b998"/>
+      <path d="M57 64 Q58 20 100 20 Q142 20 143 64 Q132 40 100 38 Q68 40 57 64Z" fill="#5a3d28"/>
+      <circle cx="79" cy="69" r="3.500" fill="#2a1c12"/><circle cx="121" cy="69" r="3.500" fill="#2a1c12"/>
+      <rect x="63" y="57" width="32" height="22" rx="4" fill="rgba(255,255,255,.22)" stroke="#111" stroke-width="5"/>
+      <rect x="105" y="57" width="32" height="22" rx="4" fill="rgba(255,255,255,.22)" stroke="#111" stroke-width="5"/>
+      <path d="M95 66 L105 66" stroke="#111" stroke-width="5"/>
+      <path d="M79 92 Q100 114 121 92Z" fill="#fff" stroke="#8a4632" stroke-width="2.500" stroke-linejoin="round"/>
+    </symbol>
+
+    <!-- ===== The Robot, full body, 200 x 420 ===== -->
+    <symbol id="robot" viewBox="0 0 200 420">
+      <rect x="50" y="378" width="40" height="22" rx="6" fill="#6b7078"/><rect x="110" y="378" width="40" height="22" rx="6" fill="#6b7078"/>
+      <path d="M72 262 L70 382 M128 262 L130 382" stroke="#cfd2d8" stroke-width="24" stroke-dasharray="5 3" fill="none"/>
+      <path d="M40 146 Q8 192 22 248 M160 146 Q192 192 178 248" stroke="#cfd2d8" stroke-width="20" stroke-dasharray="5 3" fill="none"/>
+      <circle cx="22" cy="256" r="14" fill="#777c84"/><circle cx="178" cy="256" r="14" fill="#777c84"/>
+      <rect x="38" y="124" width="124" height="142" rx="4" fill="#b3b8c0" stroke="#8a8f97" stroke-width="2"/>
+      <rect x="38" y="148" width="124" height="9" fill="#dfe2e6" opacity=".75"/>
+      <rect x="96" y="124" width="8" height="142" fill="#dfe2e6" opacity=".45"/>
+      <circle cx="100" cy="200" r="16" fill="#6b7078" stroke="#4d5158" stroke-width="3"/>
+      <rect x="90" y="112" width="20" height="14" fill="#8a8f97"/>
+      <rect x="52" y="30" width="96" height="84" rx="4" fill="#c3c7ce" stroke="#8a8f97" stroke-width="2"/>
+      <rect x="52" y="44" width="96" height="8" fill="#e3e6ea" opacity=".7"/>
+      <circle cx="78" cy="70" r="12" fill="#f5cd3c" stroke="#b8911a" stroke-width="2"/><circle cx="122" cy="70" r="12" fill="#f5cd3c" stroke="#b8911a" stroke-width="2"/>
+      <rect x="74" y="92" width="52" height="10" rx="2" fill="#2a2d33"/>
+      <path d="M100 30 L100 10" stroke="#8a8f97" stroke-width="3"/><circle cx="100" cy="8" r="5" fill="#d9483b"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <p class="eyebrow">quietsend · ad concept board</p>
+  <h1>What the ad should look like</h1>
+  <p class="lede">The two characters, the set, the props and the caption style, drawn from the descriptions in the production pack.</p>
+  <p class="warn">These are my sketches, not Grok output. Grok will produce photorealistic people and a real-looking studio, so faces and details will differ. Use this to agree on the look before spending generations.</p>
+
+  <section>
+    <p class="eyebrow">Characters</p>
+    <div class="grid">
+      <article class="card">
+        <div class="art"><svg viewBox="0 0 200 420" role="img" aria-label="Sketch of Quiet Mike"><use href="#mike"/></svg></div>
+        <div class="body">
+          <h2>Quiet Mike</h2>
+          <p class="role">The pitchman. Loud, cheerful, completely sincere.</p>
+          <ul>
+            <li>Stocky man, mid 40s, round friendly face</li>
+            <li>Short neat brown hair, clean shaven</li>
+            <li>Thick black-framed rectangular glasses</li>
+            <li>Mustard short-sleeved shirt, navy tie</li>
+            <li>Grey trousers, black belt</li>
+          </ul>
+        </div>
+      </article>
+      <article class="card">
+        <div class="art"><svg viewBox="0 0 200 420" role="img" aria-label="Sketch of the Robot"><use href="#robot"/></svg></div>
+        <div class="body">
+          <h2>The Robot</h2>
+          <p class="role">A person in a homemade costume. Flat voice, stiff walk.</p>
+          <ul>
+            <li>Silver-painted cardboard boxes with visible tape</li>
+            <li>Two round yellow lamp eyes, a slot mouth, one antenna</li>
+            <li>Silver dryer-hose arms and legs</li>
+            <li>Grey gloves and boots</li>
+            <li>Chest lamp: dark at first, green once plugged in</li>
+          </ul>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">The set, as the camera sees it in every shot</p>
+    <div class="wide">
+      <svg viewBox="0 0 960 540" role="img" aria-label="Sketch of the studio set with both characters behind a white table">
+        <defs>
+          <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1e8d3"/><stop offset="1" stop-color="#e2d5b8"/></linearGradient>
+          <linearGradient id="top" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcfbf7"/><stop offset="1" stop-color="#e4e0d6"/></linearGradient>
+        </defs>
+        <rect width="960" height="540" fill="url(#wall)"/>
+        <!-- shelf -->
+        <g>
+          <rect x="792" y="96" width="6" height="232" fill="#8f949c"/><rect x="926" y="96" width="6" height="232" fill="#8f949c"/>
+          <rect x="792" y="160" width="140" height="5" fill="#8f949c"/><rect x="792" y="236" width="140" height="5" fill="#8f949c"/><rect x="792" y="308" width="140" height="5" fill="#8f949c"/>
+          <rect x="806" y="122" width="44" height="38" rx="4" fill="#d9584a"/><rect x="862" y="130" width="52" height="30" rx="4" fill="#4a7bd9"/>
+          <rect x="806" y="196" width="56" height="40" rx="4" fill="#e3b93a"/><rect x="874" y="206" width="40" height="30" rx="4" fill="#5aa878"/>
+          <rect x="812" y="270" width="92" height="38" rx="4" fill="#c9ccd2"/>
+        </g>
+        <!-- characters stand behind the table -->
+        <use href="#mike" x="330" y="44" width="200" height="420"/>
+        <use href="#robot" x="556" y="44" width="200" height="420"/>
+        <!-- table fills the lower 40% -->
+        <rect x="0" y="324" width="960" height="216" fill="url(#top)"/>
+        <rect x="0" y="324" width="960" height="3" fill="rgba(0,0,0,.12)"/>
+        <!-- props on the table -->
+        <g>
+          <rect x="196" y="338" width="54" height="62" rx="9" fill="rgba(180,215,225,.35)" stroke="#9fb6bd" stroke-width="3"/>
+          <ellipse cx="223" cy="392" rx="18" ry="5" fill="#e0b23a"/><ellipse cx="223" cy="385" rx="18" ry="5" fill="#ecc350"/><ellipse cx="223" cy="378" rx="18" ry="5" fill="#f3d063"/>
+          <rect x="432" y="352" width="110" height="50" rx="5" fill="#1b1c20"/><rect x="432" y="368" width="6" height="18" fill="#000"/><rect x="536" y="368" width="6" height="18" fill="#000"/>
+          <rect x="770" y="350" width="44" height="30" rx="4" fill="#d6d3cb" stroke="#a9a69e" stroke-width="2"/><rect x="783" y="359" width="4" height="12" fill="#55524c"/><rect x="797" y="359" width="4" height="12" fill="#55524c"/>
+        </g>
+        <!-- where the landing page puts its text -->
+        <rect x="150" y="414" width="660" height="110" rx="14" fill="none" stroke="#1c50c8" stroke-width="2.500" stroke-dasharray="9 7"/>
+        <text x="480" y="476" text-anchor="middle" style="font:600 18px 'Inter Tight',sans-serif;fill:#1c50c8">Kept empty: the landing page headline and button sit here</text>
+      </svg>
+      <div class="body">Pale cream backdrop, flat bright lighting, a white table across the lower 40% of the frame, and a metal shelf of plain tubs on the right. The camera never moves. The jar, the black box and the socket are the only things that stay on the table.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Props, all blank (labels are added in the edit)</p>
+    <div class="props">
+      <div class="prop"><svg viewBox="0 0 96 80"><path d="M22 24 L74 24 L68 70 L28 70Z" fill="#9aa0a8"/><ellipse cx="48" cy="24" rx="26" ry="6" fill="#7f858d"/><path d="M34 20 l6 -10 M48 20 l2 -12 M60 20 l-4 -9" stroke="#d9b24a" stroke-width="4" stroke-linecap="round"/></svg><b>Bucket of keys</b><span>Shots 2 and 3</span></div>
+      <div class="prop"><svg viewBox="0 0 96 80"><circle cx="48" cy="40" r="22" fill="#ecc350" stroke="#c99a25" stroke-width="4"/><circle cx="48" cy="40" r="13" fill="none" stroke="#d9ad38" stroke-width="2"/></svg><b>One gold coin</b><span>Shots 4 and 5</span></div>
+      <div class="prop"><svg viewBox="0 0 96 80"><rect x="28" y="12" width="40" height="58" rx="8" fill="rgba(180,215,225,.3)" stroke="#9fb6bd" stroke-width="3"/><ellipse cx="48" cy="62" rx="14" ry="4" fill="#e0b23a"/><ellipse cx="48" cy="55" rx="14" ry="4" fill="#ecc350"/><ellipse cx="48" cy="48" rx="14" ry="4" fill="#f3d063"/></svg><b>Glass jar</b><span>Shots 4, 9 and 10</span></div>
+      <div class="prop"><svg viewBox="0 0 96 80"><rect x="12" y="26" width="72" height="36" rx="4" fill="#1b1c20" stroke="#3a3c42" stroke-width="2"/><rect x="12" y="38" width="5" height="12" fill="#000"/><rect x="79" y="38" width="5" height="12" fill="#000"/></svg><b>Black box</b><span>Shot 5, a slot at each end</span></div>
+      <div class="prop"><svg viewBox="0 0 96 80"><rect x="28" y="22" width="34" height="36" rx="6" fill="#8a8f97"/><rect x="62" y="30" width="16" height="6" fill="#c9ccd2"/><rect x="62" y="44" width="16" height="6" fill="#c9ccd2"/><path d="M28 40 Q8 40 10 70" stroke="#55585e" stroke-width="7" fill="none" stroke-linecap="round"/></svg><b>Giant plug</b><span>Shot 7</span></div>
+      <div class="prop"><svg viewBox="0 0 96 80"><circle cx="48" cy="40" r="26" fill="#fff" stroke="#d9d6cf" stroke-width="3"/></svg><b>Blank sticker</b><span>Shots 8 to 10</span></div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Caption style, added in the edit</p>
+    <div class="caps">
+      <span class="cap">No new wallet!</span>
+      <span class="cap">Straight to Solana!</span>
+      <span class="cap">Plug in your agent!</span>
+      <p class="fine">Amount and timing still visible. A patient observer could guess. Hides who you paid, not that you paid.</p>
+    </div>
+  </section>
+</div>
+</body>
+</html>

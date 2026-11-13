@@ -2,10 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { deriveSolanaAddress, getConnector, type SigningWallet } from "./lib/near";
 import { loadPending } from "./lib/history";
 import { resumePending } from "./lib/send";
+import Landing from "./components/Landing";
+import Demo from "./components/Demo";
 import Home from "./components/Home";
 import Send from "./components/Send";
 import Explorer from "./components/Explorer";
 import History from "./components/History";
+import { Back } from "./components/icons";
 
 export interface Session {
   nearAccount: string;
@@ -29,7 +32,6 @@ export default function App() {
   const [wallet, setWallet] = useState<SigningWallet>();
   const [address, setAddress] = useState<string>();
   const [err, setErr] = useState<string>();
-  const [walletsAvailable, setWalletsAvailable] = useState<string[]>([]);
   const [resumeMsg, setResumeMsg] = useState<string>();
 
   const adopt = useCallback(async (w: SigningWallet & { getAccounts(): Promise<{ accountId: string }[]> }) => {
@@ -46,7 +48,6 @@ export default function App() {
     let off = () => {};
     getConnector().then(async (c) => {
       await c.whenManifestLoaded;
-      setWalletsAvailable(c.availableWallets.map((w) => w.manifest.name));
       const onIn = async (e: { wallet: unknown }) => adopt(e.wallet as never).catch((x) => setErr(String(x)));
       const onOut = () => {
         setWallet(undefined);
@@ -72,7 +73,7 @@ export default function App() {
   // An interrupted send (reload mid-signing) is resumed from the NEAR tx hash.
   useEffect(() => {
     if (!loadPending()) return;
-    setResumeMsg("Resuming an interrupted send...");
+    setResumeMsg("Resuming an interrupted send…");
     resumePending((m) => setResumeMsg(m))
       .then((r) => setResumeMsg(r ? `Resumed send finished (${r.status}).` : undefined))
       .catch((e) => setResumeMsg("Could not resume: " + (e instanceof Error ? e.message : e)));
@@ -92,42 +93,53 @@ export default function App() {
     await c.disconnect();
   };
 
-  const session: Session | undefined = account && address && wallet ? { nearAccount: account, solanaAddress: address, wallet } : undefined;
-  const page = route.startsWith("/tx/") ? "tx" : route.slice(1) || "home";
+  const session: Session | undefined =
+    account && address && wallet ? { nearAccount: account, solanaAddress: address, wallet } : undefined;
+  const page = route.startsWith("/tx/") ? "tx" : route.slice(1) || "landing";
+
+  if (page === "landing") return <Landing onEnter={() => (location.hash = "#/send")} />;
 
   return (
-    <main>
-      <h1>quietsend (devnet / testnet)</h1>
-      <p style={{ margin: "4px 0" }}>Send Solana USDC with only a NEAR account. No Solana private key is stored anywhere.</p>
-      <nav>
-        {session ? (
-          <>
-            <span>
-              NEAR account: <b data-testid="account">{session.nearAccount}</b>
-            </span>
-            <button onClick={disconnect}>Disconnect</button>
-          </>
-        ) : (
-          <button onClick={connect}>Connect NEAR wallet</button>
-        )}
-        <a className={page === "home" ? "on" : ""} href="#/">Home</a>
-        <a className={page === "send" ? "on" : ""} href="#/send">Send</a>
-        <a className={page === "history" ? "on" : ""} href="#/history">History</a>
+    <div className="frame">
+      <nav className="app-nav">
+        <div className="left">
+          <a className="link" href="#/"><Back />Back</a>
+        </div>
+        <a className="logo mid" href="#/">quietsend</a>
+        <div className="right">
+          {session ? (
+            <>
+              <span className="net" data-testid="account">{session.nearAccount}</span>
+              <button className="ghost" onClick={disconnect}>Disconnect</button>
+            </>
+          ) : (
+            <button className="ghost" onClick={connect}>Connect NEAR wallet</button>
+          )}
+        </div>
       </nav>
-      {!session && walletsAvailable.length > 0 && <small>Testnet wallets offered: {walletsAvailable.join(", ")}</small>}
-      {err && <p className="err">{err}</p>}
-      {resumeMsg && <p className="log">{resumeMsg}</p>}
+
+      {err && <p className="err" style={{ margin: "0 auto 16px", maxWidth: 560 }}>{err}</p>}
+      {resumeMsg && <p className="log" style={{ margin: "0 auto 16px", maxWidth: 560 }}>{resumeMsg}</p>}
+
       {page === "tx" ? (
         <Explorer id={route.slice("/tx/".length)} />
+      ) : page === "demo" ? (
+        <Demo />
       ) : page === "history" ? (
         <History />
-      ) : !session ? (
-        <p>Connect a NEAR testnet wallet to see your derived Solana address.</p>
-      ) : page === "send" ? (
-        <Send session={session} />
-      ) : (
+      ) : page === "account" && session ? (
         <Home session={session} />
+      ) : (
+        <Send session={session} onConnect={connect} />
       )}
-    </main>
+
+      <footer className="app-foot">
+        <a className="link" href="#/send">Send</a>
+        <a className="link" href="#/history">History</a>
+        <a className="link" href="#/demo">What the guard refuses</a>
+        {session && <a className="link" href="#/account">Your address</a>}
+        <span className="net">NEAR testnet · Solana devnet</span>
+      </footer>
+    </div>
   );
 }

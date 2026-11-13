@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quietsend · after send</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #101216; --surface: #181a20; --surface-2: #1f222a;
+  --line: rgba(222, 210, 241, 0.08); --line-strong: rgba(222, 210, 241, 0.16);
+  --text: #ffffff; --text-2: rgba(255, 255, 255, 0.62); --text-3: rgba(255, 255, 255, 0.38);
+  --public: #f2b866; --public-bg: rgba(242, 184, 102, 0.12);
+  --hidden: #8fd3b6; --hidden-bg: rgba(143, 211, 182, 0.12);
+  --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --sans: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-field: 16px; --r-pill: 999px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 500 16px/1.5 var(--sans); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased;
+}
+p, h1, h2 { margin: 0; }
+[hidden] { display: none !important; }
+
+.page { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+.nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.logo { font-family: var(--serif); font-size: 26px; }
+.net { font-size: 12px; color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--r-pill); padding: 4px 10px; white-space: nowrap; }
+
+.hero { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px 0 32px; animation: rise .4s ease both; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.hero h1 { font: 400 clamp(64px, 12vw, 128px)/0.95 var(--serif); letter-spacing: -0.02em; }
+.hero .lede { margin-top: 16px; font-size: clamp(16px, 2vw, 19px); color: var(--text-2); max-width: 34ch; }
+
+/* ---------- form (same as 02-landing) ---------- */
+.form { width: 100%; max-width: 420px; margin-top: 28px; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.account { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 4px; font-size: 14px; color: var(--text-2); }
+.account b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.form input {
+  width: 100%; height: 52px; padding: 0 16px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--line-strong); border-radius: var(--r-field); font: 500 16px var(--sans); letter-spacing: -0.01em;
+}
+.form input.mono:not(:placeholder-shown) { font-family: var(--mono); font-size: 14px; letter-spacing: 0; }
+.form input::placeholder { color: var(--text-3); }
+.form input:focus { outline: 0; border-color: var(--text); }
+.amount { position: relative; }
+.amount span { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-3); pointer-events: none; }
+.chains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.chains button {
+  appearance: none; height: 40px; border-radius: var(--r-pill); background: transparent; border: 1px solid var(--line-strong);
+  color: var(--text); font: 600 14px var(--sans); display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+}
+.chains button[aria-pressed="true"] { background: var(--surface-2); border-color: rgba(255, 255, 255, .5); }
+.chains button i { width: 8px; height: 8px; border-radius: 50%; background: var(--hidden); }
+.chains button[disabled] { color: var(--text-3); border-style: dashed; cursor: not-allowed; }
+.chains small { font-size: 11px; font-weight: 500; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-field); }
+.seg button { appearance: none; border: 0; cursor: pointer; height: 40px; border-radius: 12px; background: transparent; color: var(--text-2); font: 600 14px var(--sans); white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+.shows { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; font-size: 14px; color: var(--text-2); }
+.tag {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 8px; border-radius: var(--r-pill);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; flex: none;
+}
+.tag svg { width: 14px; height: 14px; }
+.tag.public { color: var(--public); background: var(--public-bg); }
+.tag.hidden { color: var(--hidden); background: var(--hidden-bg); }
+.btn {
+  appearance: none; border: 0; cursor: pointer; width: 100%; height: 56px; padding: 0 32px; border-radius: var(--r-pill);
+  font: 600 17px/1 var(--sans); letter-spacing: -0.01em; background: var(--text); color: var(--bg);
+  transition: transform .12s ease, background .12s ease;
+}
+.btn:hover { background: #e6e6ea; }
+.btn:active { transform: scale(0.98); }
+.btn[disabled] { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; transform: none; }
+:is(.btn, .seg button, a):focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+/* ---------- after send ---------- */
+.result { justify-content: flex-start; padding-top: clamp(16px, 5vh, 48px); }
+.status { display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 14px; border-radius: var(--r-pill); background: var(--surface); border: 1px solid var(--line); font-size: 14px; color: var(--text-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--public); animation: pulse 1.2s ease-in-out infinite; flex: none; }
+.dot.ok { background: var(--hidden); animation: none; }
+@keyframes pulse { 50% { opacity: .3; } }
+.result h1 { margin-top: 16px; font-size: clamp(56px, 9vw, 104px); }
+.result .lede { max-width: none; margin-top: 10px; }
+.result .lede .mono { font-family: var(--mono); font-size: .88em; letter-spacing: 0; color: var(--text); }
+
+.steps { width: 100%; margin-top: 32px; display: grid; gap: 12px; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); text-align: left; }
+.steps[style*="--n: 2"] { max-width: 760px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 20px; display: flex; flex-direction: column; transition: border-color .3s ease, opacity .3s ease; }
+.step.todo { opacity: .45; }
+.step.now { border-color: rgba(255, 255, 255, .35); }
+.step .where { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.step h2 { font: 400 26px/1.15 var(--serif); margin-top: 6px; }
+.step .wait { margin-top: 20px; display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-2); min-height: 24px; }
+.step.todo .wait .dot { animation: none; background: var(--text-3); }
+.rows { margin-top: 12px; animation: rise .35s ease both; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.row .k { grid-column: 1 / -1; font-size: 12px; color: var(--text-3); }
+.row .v { font-family: var(--mono); font-size: 14px; letter-spacing: 0; overflow-wrap: anywhere; }
+.row.absent { margin: 0 -10px; padding: 12px 10px; border-top: 0; border-radius: 12px;
+  background: repeating-linear-gradient(135deg, rgba(143, 211, 182, .09) 0 6px, transparent 6px 12px); }
+.row.absent + .row { border-top: 0; }
+.row.absent .v { font-family: var(--sans); color: var(--text-2); letter-spacing: -0.01em; }
+.step .foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-3); }
+.step .foot a { color: var(--text-2); text-decoration: none; }
+.step .foot a:hover { color: var(--text); text-decoration: underline; }
+
+.verdict { width: 100%; max-width: 760px; margin-top: 16px; padding: 16px 20px; border-radius: 20px; background: var(--surface-2); display: flex; align-items: center; gap: 14px; text-align: left; font-size: 15px; color: var(--text-2); animation: rise .4s ease both; }
+.verdict b { color: var(--text); font-weight: 600; }
+.again { margin-top: 24px; width: auto; min-width: 240px; animation: rise .4s ease both; }
+
+.points { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 28px; padding: 20px 0 28px; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); }
+.points span { display: inline-flex; align-items: center; gap: 8px; }
+.points svg { width: 16px; height: 16px; color: var(--text-3); }
+
+@media (max-width: 760px) {
+  .steps { grid-template-columns: 1fr; }
+  .verdict { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .again { width: 100%; }
+}
+@media (max-width: 520px) { .points { flex-direction: column; align-items: center; } }
+@media (prefers-reduced-motion: reduce) { .btn, .step { transition: none; } .hero, .rows, .verdict, .again { animation: none; } .dot { animation: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="eye" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.8"/></symbol>
+  <symbol id="eye-off" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.3 3.8A6 6 0 0 1 8 3.5c4 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.7 2.2M10.9 11.6A5.8 5.8 0 0 1 8 12.5C4 12.5 1.5 8 1.5 8a11 11 0 0 1 2.7-3.1M2.5 2.5l11 11"/></symbol>
+  <symbol id="user" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5.500" r="2.500"/><path d="M3 13.500c.600-2.400 2.600-3.700 5-3.700s4.400 1.300 5 3.700"/></symbol>
+  <symbol id="flask" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h4M6.500 2v4L3 12.500A1 1 0 0 0 3.900 14h8.200a1 1 0 0 0 .900-1.500L9.500 6V2"/></symbol>
+</svg>
+
+<div class="page">
+  <nav class="nav">
+    <span class="logo">quietsend</span>
+    <span class="net">Test networks only</span>
+  </nav>
+
+  <!-- ===== before send: the approved landing, already connected and filled in for this mock ===== -->
+  <main class="hero" id="compose">
+    <h1>No new wallet</h1>
+    <p class="lede">Send on Solana straight from your NEAR account.</p>
+    <form class="form" onsubmit="return false">
+      <div class="account"><span>you.testnet</span><span><b>140.50</b> USDC available</span></div>
+      <div class="chains" role="group" aria-label="Chain to send on">
+        <button type="button" aria-pressed="true"><i></i>Solana</button>
+        <button type="button" disabled>Ethereum<small>soon</small></button>
+        <button type="button" disabled>Bitcoin<small>soon</small></button>
+      </div>
+      <input id="to" class="mono" placeholder="Recipient's Solana address" aria-label="Recipient's Solana address" autocomplete="off" value="9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin">
+      <div class="amount">
+        <input id="amt" inputmode="decimal" placeholder="Amount" aria-label="Amount in USDC" autocomplete="off" value="25">
+        <span>USDC</span>
+      </div>
+      <div class="seg" id="mode" aria-label="Mode">
+        <button type="button" aria-pressed="false" data-mode="normal">Normal</button>
+        <button type="button" aria-pressed="true" data-mode="hide">Hide recipient</button>
+      </div>
+      <div class="shows" id="shows" aria-live="polite"></div>
+      <button class="btn" id="go" type="button"></button>
+    </form>
+  </main>
+
+  <!-- ===== after send ===== -->
+  <main class="hero result" id="result" hidden>
+    <span class="status" role="status"><span class="dot" id="sdot"></span><span id="stext"></span></span>
+    <h1 id="rhead">Sending</h1>
+    <p class="lede" id="rsub"></p>
+    <div class="steps" id="steps"></div>
+    <div class="verdict" id="verdict" hidden></div>
+    <button class="btn again" id="again" hidden>Send another</button>
+  </main>
+
+  <div class="points">
+    <span><svg><use href="#user"/></svg>One NEAR account, no extra keys</span>
+    <span><svg><use href="#eye"/></svg>See what's public before you send</span>
+    <span><svg><use href="#flask"/></svg>No real money</span>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const tag = hidden => '<span class="tag ' + (hidden ? 'hidden' : 'public') + '"><svg><use href="#' + (hidden ? 'eye-off' : 'eye') + '"/></svg>' + (hidden ? 'Hidden' : 'Public') + '</span>';
+const short = a => a.length > 12 ? a.slice(0, 4) + '…' + a.slice(-4) : a;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ME = '7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27';
+let mode = 'hide', timers = [];
+
+// ---------- form ----------
+function paint() {
+  const amt = parseFloat($('amt').value) || 0, to = $('to').value.trim();
+  $('shows').innerHTML = mode === 'hide'
+    ? tag(true) + '<span>Who you paid. The amount and time still show.</span>'
+    : tag(false) + '<span>Who you paid, how much and when.</span>';
+  $('go').disabled = !(amt > 0 && to);
+  $('go').textContent = !to ? 'Enter a recipient' : !(amt > 0) ? 'Enter an amount' : 'Send ' + amt.toFixed(2) + ' USDC';
+}
+document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll('#mode button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  paint();
+}));
+['to', 'amt'].forEach(id => $(id).addEventListener('input', paint));
+paint();
+
+// ---------- after send ----------
+function plan(amt, to) {
+  const P = false, H = true, gone = 'Not in this transaction';
+  const near = {
+    where: 'NEAR', title: 'You asked NEAR to sign',
+    phases: [['Approve in your NEAR wallet', 2200], ['NEAR’s nodes are signing', 2000]],
+    rows: [['Your account', 'you.testnet', P], ['Solana address it controls', short(ME), P], ['What was signed', 'This transfer', P]],
+    note: '11 of 16 nodes signed. No Solana key exists.', link: 'View on NearBlocks',
+  };
+  if (mode === 'normal') return [near, {
+    where: 'Solana', title: 'You to recipient', phases: [['Sending on Solana', 1800]],
+    rows: [['Sender', short(ME), P], ['Recipient', short(to), P], ['Amount', amt.toFixed(2) + ' USDC', P]],
+    note: 'One transaction, final in seconds.', link: 'View on Solana Explorer',
+  }];
+  const fee = amt * 0.001;
+  return [near, {
+    where: 'Solana · Step 1', title: 'You to vault', phases: [['Sending to the vault', 1800]],
+    rows: [['Sender', short(ME), P], ['Recipient', gone, H], ['Amount', (amt + fee).toFixed(3) + ' USDC', P]],
+    note: 'Includes the ' + fee.toFixed(3) + ' USDC fee.', link: 'View on Solana Explorer',
+  }, {
+    where: 'Solana · Step 2', title: 'Vault to recipient', phases: [['Waiting for the vault to pay out', 2400]],
+    rows: [['Sender', gone, H], ['Recipient', short(to), P], ['Amount', amt.toFixed(2) + ' USDC', P]],
+    note: '1 second after step 1.', link: 'View on Solana Explorer',
+  }];
+}
+function card(s) {
+  const d = document.createElement('article');
+  d.className = 'step todo';
+  d.innerHTML = '<span class="where">' + s.where + '</span><h2>' + s.title + '</h2>'
+    + '<div class="wait"><span class="dot"></span><span class="wt">Not started</span></div>'
+    + '<div class="rows" hidden>' + s.rows.map(r =>
+        '<div class="row' + (r[2] ? ' absent' : '') + '"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span>' + tag(r[2]) + '</div>').join('') + '</div>'
+    + '<div class="foot" hidden><span>' + s.note + '</span><a href="#" onclick="return false">' + s.link + ' ↗</a></div>';
+  return d;
+}
+function send() {
+  const amt = parseFloat($('amt').value), to = $('to').value.trim(), steps = plan(amt, to);
+  $('compose').hidden = true; $('result').hidden = false;
+  $('verdict').hidden = true; $('again').hidden = true;
+  $('rhead').textContent = 'Sending';
+  $('sdot').className = 'dot';
+  $('rsub').innerHTML = amt.toFixed(2) + ' USDC to <span class="mono">' + short(to) + '</span>';
+  const box = $('steps'); box.innerHTML = ''; box.style.setProperty('--n', steps.length);
+  const cards = steps.map(s => box.appendChild(card(s)));
+  window.scrollTo(0, 0);
+
+  let t = 0;
+  const at = (ms, fn) => timers.push(setTimeout(fn, still ? 0 : ms));
+  steps.forEach((s, i) => {
+    s.phases.forEach(([text, ms]) => {
+      at(t, () => { cards[i].className = 'step now'; cards[i].querySelector('.wt').textContent = text; $('stext').textContent = text; });
+      t += ms;
+    });
+    at(t, () => {
+      cards[i].className = 'step done';
+      cards[i].querySelector('.wait').hidden = true;
+      cards[i].querySelector('.rows').hidden = false;
+      cards[i].querySelector('.foot').hidden = false;
+    });
+  });
+  at(t + 200, () => {
+    $('rhead').textContent = 'Sent';
+    $('sdot').className = 'dot ok'; $('stext').textContent = 'Done';
+    $('verdict').innerHTML = mode === 'hide'
+      ? tag(true) + '<span><b>No transaction names you and the recipient together.</b> The matching amount and the one-second gap are public, so someone patient could still guess.</span>'
+      : tag(false) + '<span><b>One transaction names you, the recipient and the amount.</b> Anyone can look it up.</span>';
+    $('verdict').hidden = false; $('again').hidden = false;
+  });
+}
+$('go').addEventListener('click', send);
+$('again').addEventListener('click', () => {
+  timers.forEach(clearTimeout); timers = [];
+  $('result').hidden = true; $('compose').hidden = false; window.scrollTo(0, 0);
+});
+</script>
+</body>
+</html>

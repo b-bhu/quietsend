@@ -5,6 +5,8 @@ import { TabletClip } from "./tablet/TabletClip";
 import { ScreenA, ScreenB, ScreenC, SCREEN_A, SCREEN_B, SCREEN_C } from "./tablet/AppScreens";
 import { TvLook } from "./look/TvLook";
 import { Settle } from "./look/Settle";
+import { Captions } from "./captions/Captions";
+import { Sfx } from "./captions/Sfx";
 
 // Source: Grok raw cut (nine 6-second clips back to back), 1920x1080 @ 24fps.
 // Pass 1: trim each clip to its spoken line. Nothing is cut out; every clip stays,
@@ -60,7 +62,7 @@ export const QuietsendAd: React.FC = () => {
         </TransitionSeries.Sequence>
         {/* 8 Plug in with MCP, chest goes green, thumbs up (src 42.71-48.25s) */}
         {/* Caption: JUST PLUG IN WITH MCP. The MCP server (mcp/server.ts) and the
-            policy contract (policy.bibhu-usdc.testnet) are deployed, so this is
+            policy contract (policy.quietsend.testnet) are deployed, so this is
             accurate. Live limits are 1 per transfer / 3 a day; if a later clip
             captions a figure, use those. See docs/ad/grokbot-brief.v2.md. */}
         <TransitionSeries.Sequence name="08 Plug" durationInFrames={133}>
@@ -71,7 +73,11 @@ export const QuietsendAd: React.FC = () => {
           <Video src={RAW} trimBefore={1168} />
         </TransitionSeries.Sequence>
       </TransitionSeries>
+      {/* Pass 5: word-art captions and the docs card (see src/captions). Inside the
+          TV look so they get the same scanlines and bleed, like broadcast graphics. */}
+      <Captions />
       </TvLook>
+      <Sfx />
     </AbsoluteFill>
   );
 };

@@ -1,0 +1,4 @@
+kimi-k3.1-pro exit 0
+glm-5.3 exit 0
+deepseek-v4-pro exit 1
+deepseek-v4-pro retry exit 1

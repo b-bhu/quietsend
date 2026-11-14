@@ -7,6 +7,28 @@ import { Arrow } from "./icons";
  * until then the poster frame alone is shown.
  */
 const GITHUB_URL = "https://github.com/b-bhu/quietsend";
+
+// Bump when web/public/ad.mp4 or ad-poster.jpg changes, so browsers fetch the new file
+// instead of replaying a cached one from the same URL.
+const AD_VERSION = "v3";
+
+// The button follows the ad. Times are seconds into ad.mp4 (42.4 s, loops); each cue
+// lasts until the next one. Labels track what Mike is saying on screen at that moment.
+type Tone = "plain" | "near" | "private";
+const CUES: { t: number; label: string; tone: Tone }[] = [
+  { t: 0, label: "Send USDC", tone: "plain" }, // intro, "a wallet for every chain?"
+  { t: 9.42, label: "One NEAR account", tone: "near" }, // "No new wallet!"
+  { t: 13.42, label: "Send USDC on Solana", tone: "near" }, // the send form on the tablet
+  { t: 15.83, label: "Sent \u2713", tone: "near" }, // "SENT!"
+  { t: 17.67, label: "Hide who you paid", tone: "private" }, // hide recipient, you -> vault -> them
+  { t: 27.54, label: "Plug in your agent", tone: "near" }, // robot arrives, "plug in with MCP"
+  { t: 36.62, label: "Try it on testnet", tone: "near" }, // "Try this at home!"
+];
+const cueAt = (t: number) => {
+  let i = 0;
+  while (i + 1 < CUES.length && t >= CUES[i + 1].t) i++;
+  return i;
+};
 const X_URL = "https://x.com/bivhu_";
 
 export default function Landing({ onEnter }: { onEnter: () => void }) {
@@ -27,6 +49,35 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
       v.removeEventListener("error", bad);
     };
   }, []);
+
+  // Follow the ad's playhead. Before the film can play, the button keeps its plain label.
+  const [cue, setCue] = useState(0);
+  useEffect(() => {
+    const v = video.current;
+    if (!v || !adReady) {
+      setCue(0);
+      return;
+    }
+    // Every frame while visible, plus the video's own events, which still fire when
+    // animation frames are throttled (background tabs, low-power mode) and on seek or loop.
+    const sync = () => {
+      const i = cueAt(v.currentTime);
+      setCue((prev) => (prev === i ? prev : i));
+    };
+    let raf = 0;
+    const tick = () => {
+      sync();
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const events = ["timeupdate", "seeked", "play"] as const;
+    events.forEach((e) => v.addEventListener(e, sync));
+    return () => {
+      cancelAnimationFrame(raf);
+      events.forEach((e) => v.removeEventListener(e, sync));
+    };
+  }, [adReady]);
+  const current = CUES[cue];
 
   // Autoplay must start muted; the viewer can turn the voices on.
   const [muted, setMuted] = useState(true);
@@ -54,12 +105,12 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
         <div className="film">
           {/* The poster frame always paints; the ad covers it once public/ad.mp4 exists. */}
-          <img className="plate" src="/ad-poster.jpg" alt="" aria-hidden="true" />
+          <img className="plate" src={`/ad-poster.jpg?${AD_VERSION}`} alt="" aria-hidden="true" />
           <video
             ref={video}
             className={"plate film-video" + (adReady ? " ready" : "")}
-            src="/ad.mp4"
-            poster="/ad-poster.jpg"
+            src={`/ad.mp4?${AD_VERSION}`}
+            poster={`/ad-poster.jpg?${AD_VERSION}`}
             autoPlay
             muted
             loop
@@ -72,8 +123,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
             </button>
           ) : null}
           {/* centred, 10% up from the bottom of the film */}
-          <button className="btn film-cta" onClick={onEnter}>
-            Send USDC <Arrow />
+          <button className={"btn film-cta tone-" + current.tone} onClick={onEnter} aria-label="Send USDC">
+            <span key={cue} className="cta-label" aria-hidden="true">
+              {current.label} <Arrow />
+            </span>
           </button>
         </div>
       </section>

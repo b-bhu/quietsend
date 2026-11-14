@@ -1,77 +1,42 @@
 import { Composition, staticFile, AbsoluteFill } from "remotion";
 import { Video } from "@remotion/media";
 import { TransitionSeries } from "@remotion/transitions";
-import { TabletClip } from "./tablet/TabletClip";
-import { ScreenA, ScreenB, ScreenC, SCREEN_A, SCREEN_B, SCREEN_C } from "./tablet/AppScreens";
 import { TvLook } from "./look/TvLook";
-import { Settle } from "./look/Settle";
 import { Captions } from "./captions/Captions";
 import { Sfx } from "./captions/Sfx";
 
-// Source: Grok raw cut (nine 6-second clips back to back), 1920x1080 @ 24fps.
-// Pass 1: trim each clip to its spoken line. Nothing is cut out; every clip stays,
-// only the dead air at the head and tail of each clip is removed.
+// Source: Grok master v3 (nine 6.04 s clips back to back), 1920x1080 @ 24fps.
+// v3 is re-generated: grey desk, tighter framing, and the app is already on the tablet
+// screens, so the tablet key (src/tablet/TabletClip) and the Settle framing fixes used for
+// v2 are not needed. Each clip is trimmed to its spoken line plus the action around it
+// (bucket tip, sweep, robot walking in). Nothing is cut out of a line.
 // trimBefore = source frame where the clip starts, durationInFrames = how long it plays.
-const RAW = staticFile("raw/quietsend-cut-v2-clean.mp4");
+const RAW = staticFile("raw/quietsend-v3-clean.mp4");
+
+const CLIPS: { name: string; trimBefore: number; durationInFrames: number }[] = [
+  { name: "01 Intro", trimBefore: 0, durationInFrames: 108 }, //   0.00- 4.50s "Hi, Quiet Mike here..."
+  { name: "02 Bucket", trimBefore: 146, durationInFrames: 118 }, //  6.08-11.00s tip the bucket, "A wallet for every chain?"
+  { name: "03 Sweep", trimBefore: 298, durationInFrames: 96 }, //  12.42-16.40s sweep, "No new wallet!"
+  { name: "04 Tablet A", trimBefore: 436, durationInFrames: 102 }, // 18.17-22.40s send form
+  { name: "05 Tablet B", trimBefore: 581, durationInFrames: 113 }, // 24.21-28.90s hide recipient
+  { name: "06 Tablet C", trimBefore: 726, durationInFrames: 124 }, // 30.25-35.40s two-step receipt
+  { name: "07 Robot", trimBefore: 876, durationInFrames: 101 }, //   36.50-40.70s robot walks in, "Hello. I am a robot..."
+  { name: "08 Plug", trimBefore: 1016, durationInFrames: 117 }, //   42.33-47.20s plug in with MCP, chest goes green
+  { name: "09 Close", trimBefore: 1164, durationInFrames: 139 }, //  48.50-54.29s point at camera, robot waves
+];
+export const AD_FRAMES = CLIPS.reduce((n, c) => n + c.durationInFrames, 0); // 1018 = 42.4s
 
 export const QuietsendAd: React.FC = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {/* Pass 3: the 1990s TV look over everything (see src/look/TvLook.tsx). */}
+      {/* The 1990s TV look over everything (see src/look/TvLook.tsx). */}
       <TvLook>
       <TransitionSeries name="Ad timeline">
-        {/* 1 Intro: "Hi, Quiet Mike here..." (src 0.00-5.30s) */}
-        <TransitionSeries.Sequence name="01 Intro" durationInFrames={127}>
-          <Video src={RAW} trimBefore={0} />
-        </TransitionSeries.Sequence>
-        {/* 2 Bucket dump: "A wallet for every chain?" (src 6.33-10.63s) */}
-        {/* Pass 4: Settle starts the clip framed like the end of the clip before it
-            (Grok's camera crept in there) and eases back. Numbers measured from the table
-            corner and shelf post. */}
-        <TransitionSeries.Sequence name="02 Bucket" durationInFrames={103}>
-          <Settle scale={1.135} x={3} y={79}>
-            <Video src={RAW} trimBefore={152} />
-          </Settle>
-        </TransitionSeries.Sequence>
-        {/* 3 Sweep: "No new wallet!" + grin (src 12.17-16.92s) */}
-        <TransitionSeries.Sequence name="03 Sweep" durationInFrames={114}>
-          <Video src={RAW} trimBefore={292} />
-        </TransitionSeries.Sequence>
-        {/* Pass 2: the blank tablet screens carry the app UI (tracked + keyed, see src/tablet). */}
-        {/* 4 Tablet A: send form fills in, then "Sent" (src 18.17-21.88s) */}
-        <TransitionSeries.Sequence name="04 Tablet A" durationInFrames={89}>
-          <TabletClip src={RAW} trimBefore={436} screen={SCREEN_A} Screen={ScreenA} />
-        </TransitionSeries.Sequence>
-        {/* 5 Tablet B: Hide recipient switch, then receipt with recipient HIDDEN (src 24.17-29.08s) */}
-        <TransitionSeries.Sequence name="05 Tablet B" durationInFrames={118}>
-          <Settle scale={1.096} x={0} y={58}>
-            <TabletClip src={RAW} trimBefore={580} screen={SCREEN_B} Screen={ScreenB} />
-          </Settle>
-        </TransitionSeries.Sequence>
-        {/* 6 Tablet C: two-step hidden receipt (src 30.54-35.38s) */}
-        <TransitionSeries.Sequence name="06 Tablet C" durationInFrames={116}>
-          <Settle scale={1.162} x={-6} y={94}>
-            <TabletClip src={RAW} trimBefore={733} screen={SCREEN_C} Screen={ScreenC} />
-          </Settle>
-        </TransitionSeries.Sequence>
-        {/* 7 Robot arrives: "Hello. I am a robot..." (src 37.67-40.88s) */}
-        <TransitionSeries.Sequence name="07 Robot" durationInFrames={77}>
-          <Settle scale={1.212} x={-12} y={121}>
-            <Video src={RAW} trimBefore={904} />
-          </Settle>
-        </TransitionSeries.Sequence>
-        {/* 8 Plug in with MCP, chest goes green, thumbs up (src 42.71-48.25s) */}
-        {/* Caption: JUST PLUG IN WITH MCP. The MCP server (mcp/server.ts) and the
-            policy contract (policy.quietsend.testnet) are deployed, so this is
-            accurate. Live limits are 1 per transfer / 3 a day; if a later clip
-            captions a figure, use those. See docs/ad/grokbot-brief.v2.md. */}
-        <TransitionSeries.Sequence name="08 Plug" durationInFrames={133}>
-          <Video src={RAW} trimBefore={1025} />
-        </TransitionSeries.Sequence>
-        {/* 9 Close: point at camera, robot waves (src 48.67-54.13s) */}
-        <TransitionSeries.Sequence name="09 Close" durationInFrames={131}>
-          <Video src={RAW} trimBefore={1168} />
-        </TransitionSeries.Sequence>
+        {CLIPS.map((c) => (
+          <TransitionSeries.Sequence key={c.name} name={c.name} durationInFrames={c.durationInFrames}>
+            <Video src={RAW} trimBefore={c.trimBefore} />
+          </TransitionSeries.Sequence>
+        ))}
       </TransitionSeries>
       {/* Pass 5: word-art captions and the docs card (see src/captions). Inside the
           TV look so they get the same scanlines and bleed, like broadcast graphics. */}
@@ -82,13 +47,12 @@ export const QuietsendAd: React.FC = () => {
   );
 };
 
-// 127+103+114+89+118+116+77+133+131 = 1008 frames = 42.0s
 export const MyComposition = () => {
   return (
     <Composition
       id="QuietsendAd"
       component={QuietsendAd}
-      durationInFrames={1008}
+      durationInFrames={AD_FRAMES}
       fps={24}
       width={1920}
       height={1080}

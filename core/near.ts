@@ -130,6 +130,21 @@ export function parseSignValue(value: unknown): SignResult | undefined {
 
   // Direct MPC result, or contract wrapper { status: "signed", signature: { scheme, signature: [...] } }.
   const inner = Array.isArray(v.signature) || v.signature instanceof Uint8Array ? v : v.signature;
+  // ECDSA (secp256k1): { scheme, big_r: { affine_point: "02/03<x>" }, s: { scalar: "<hex>" }, recovery_id }
+  // Returned as 65 bytes r || s || recovery_id (0/1), not yet normalised to low-s.
+  const ecdsa = (inner && typeof inner === "object" ? inner : v) as Record<string, unknown>;
+  if (ecdsa.big_r && ecdsa.s && ecdsa.recovery_id != null) {
+    const bigR = String((ecdsa.big_r as { affine_point?: unknown }).affine_point ?? "");
+    const sHex = String((ecdsa.s as { scalar?: unknown }).scalar ?? "");
+    if (!/^0[23][0-9a-fA-F]{64}$/.test(bigR) || !/^[0-9a-fA-F]{64}$/.test(sHex)) {
+      throw new Error("Unexpected ECDSA signer response");
+    }
+    const sig = new Uint8Array(65);
+    sig.set(Buffer.from(bigR.slice(2), "hex"), 0);
+    sig.set(Buffer.from(sHex, "hex"), 32);
+    sig[64] = Number(ecdsa.recovery_id);
+    return { kind: "signature", signature: sig, path: typeof v.path === "string" ? v.path : undefined };
+  }
   if (inner && typeof inner === "object") {
     const bytes = (inner as { signature?: unknown }).signature;
     if (Array.isArray(bytes) || bytes instanceof Uint8Array) {
@@ -310,19 +325,47 @@ export async function mpcSignViaPolicy(
   args: { recipient: string; amountBase: bigint; mode: "normal" | "hide" },
   onHash?: (hash: string) => void,
 ): Promise<PolicySignResult> {
-  const cfg = getConfig();
-  const account = accountFromKey(accountId, privateKey);
   const body = {
     payload_hex: toHex(message),
     recipient: args.recipient,
     amount: args.amountBase.toString(),
     mode: args.mode === "hide" ? "hide_recipient" : "normal",
   };
+  return callPolicySign(accountId, privateKey, "sign_for_caller", body, onHash);
+}
+
+/** Ask the policy contract for an EIP-3009 USDC authorization signature (EVM). */
+export async function mpcSignEvmViaPolicy(
+  accountId: string,
+  privateKey: string,
+  args: { chain: string; from: string; recipient: string; amountBase: bigint; validBefore: bigint; nonceHex: string },
+  onHash?: (hash: string) => void,
+): Promise<PolicySignResult> {
+  const body = {
+    chain: args.chain,
+    from: args.from,
+    recipient: args.recipient,
+    amount: args.amountBase.toString(),
+    valid_before: args.validBefore.toString(),
+    nonce_hex: args.nonceHex,
+  };
+  return callPolicySign(accountId, privateKey, "sign_evm_for_caller", body, onHash);
+}
+
+async function callPolicySign(
+  accountId: string,
+  privateKey: string,
+  method: "sign_for_caller" | "sign_evm_for_caller",
+  body: Record<string, string>,
+  onHash?: (hash: string) => void,
+): Promise<PolicySignResult> {
+  const cfg = getConfig();
+  const account = accountFromKey(accountId, privateKey);
   let outcome: Outcome;
   try {
     outcome = (await account.signAndSendTransaction({
       receiverId: cfg.policyContract,
-      actions: [actionCreators.functionCall("sign_for_caller", body, BigInt(cfg.signGas), 0n)],
+      actions: [actionCreators.functionCall(method, body, BigInt(cfg.signGas), 0n)],
     })) as Outcome;
   } catch (e) {
     if (isPolicyMissingError(e)) throw new Error(POLICY_NOT_DEPLOYED);

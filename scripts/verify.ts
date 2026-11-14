@@ -10,6 +10,7 @@ import {
   ataOf,
   formatUsdc,
   getBalances,
+  getConfig,
   inspectTx,
   mpcSignViaKey,
   runSend,
@@ -54,7 +55,7 @@ async function main() {
 
   try {
     const policy = await derivePolicySolanaAddress(ACCOUNT);
-    console.log(`policy-mode address for policy.bibhu-usdc.testnet + ${ACCOUNT}/solana-1: ${policy}`);
+    console.log(`policy-mode address for ${getConfig().policyContract} + ${ACCOUNT}/solana-1: ${policy}`);
     ok(policy !== human, "policy-mode address differs from the human-mode address");
   } catch (e) {
     console.log("NOTE", "could not derive the policy-mode address:", e instanceof Error ? e.message : e);

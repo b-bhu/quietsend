@@ -21,7 +21,9 @@ export const USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 export const USDC_DECIMALS = 6;
 
 export const MB_API = "https://payments.magicblock.app";
-export const POLICY_CONTRACT = "policy.bibhu-usdc.testnet";
+// Moved from policy.bibhu-usdc.testnet on 14 Nov 2026 (adds EVM). Derived agent
+// addresses changed with it, because the MPC predecessor is the contract.
+export const POLICY_CONTRACT = "policy.quietsend.testnet";
 
 export type QuietSendConfig = {
   signerContract: string;

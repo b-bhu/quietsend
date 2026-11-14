@@ -1,4 +1,7 @@
 // Deploy and init the quietsend policy contract on NEAR testnet.
+// NOTE: this created the first contract, policy.bibhu-usdc.testnet. The current one,
+// policy.quietsend.testnet (adds EVM), was created and deployed with the near CLI on
+// 14 Nov 2026; its key lives in the macOS keychain, not .keys/.
 //   npx tsx scripts/p-00-deploy-policy.ts           (create subaccount, deploy, init)
 //   npx tsx scripts/p-00-deploy-policy.ts --redeploy (redeploy code with the contract's own key; state kept)
 // Build first: (cd contract && cargo near build non-reproducible-wasm)

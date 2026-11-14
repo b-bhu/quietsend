@@ -109,13 +109,16 @@ Move the checks out of the page and into a NEAR contract that sits between the r
 
 The deposit rule above is what gives this real force: a function-call key **cannot** reach the signer, so an agent routed through such a contract has no way around it. The architecture enforces the boundary instead of asking politely.
 
-**This is now built** (`contract/src/lib.rs`, deployed at `policy.bibhu-usdc.testnet`; agent front door `mcp/server.ts`). It enforces a per-transfer limit and a daily limit, holds anything above them as an intent until the owner calls `approve_intent`, and binds the payload it signs. `scripts/p-01-policy-e2e.ts` proves the flow end to end with a function-call key.
+**This is now built** (`contract/src/lib.rs`, deployed at `policy.quietsend.testnet`; agent front door `mcp/server.ts`). It enforces a per-transfer limit and a daily limit, holds anything above them as an intent until the owner calls `approve_intent`, and binds the payload it signs. `scripts/p-01-policy-e2e.ts` proves the flow end to end with a function-call key.
 
 What that does and does not change:
 
 - **It is a real boundary for the agent path.** An agent's function-call key cannot reach the signer, so it cannot bypass the contract. The limits are enforced on-chain, not in a page.
 - **It does not fix the browser path.** A human sending from the web app still signs with a full-access key, and the browser-side guard above still applies, with all the limits stated in this document.
-- **Addresses differ.** Policy mode derives from predecessor `policy.bibhu-usdc.testnet` and path `<user>/solana-1`, which is a different Solana address from human mode.
+- **Addresses differ.** Policy mode derives from predecessor `policy.quietsend.testnet` and path `<user>/solana-1`, which is a different Solana address from human mode.
+- **EVM (Base Sepolia).** The contract builds the EIP-3009 digest itself from (from, to, value, validAfter = 0, validBefore, nonce) for a fixed USDC contract and chain id, and refuses a `validBefore` more than an hour ahead. `from` is supplied by the caller; that is safe because the MPC signs with the caller's own derived key, so an authorization naming any other `from` fails recovery in the USDC contract. The client also recovers the signer and refuses to relay unless it is the agent's derived address.
+- **The relayer** holds a hot key with gas money only. It cannot alter an authorization (that breaks the signature), so a leak loses gas, not user funds; it can refuse to submit. USDC burns each nonce, so an authorization cannot be replayed.
+- **HTTP 402.** A paid server chooses the price and the payee. What bounds it: the caller's `max_amount_usdc` for that call, then the contract's per-transfer, daily and cap limits. A malicious server can still take up to those limits for nothing in return; set limits accordingly.
 - **The contract is unaudited**, like the rest of this project.
 
 ---

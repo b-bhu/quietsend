@@ -9,7 +9,7 @@ Send Solana devnet USDC using only a NEAR testnet account, via NEAR Chain Signat
 3. The NEAR account asks `v1.signer-prod.testnet` to sign the message (Ed25519, domain 1, 1 yoctoNEAR, 300 Tgas).
 4. The signed transaction is broadcast to Solana devnet.
 
-Human mode uses the user's NEAR account as the derivation predecessor (example: `bibhu-usdc.testnet` + `solana-1` = `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`). Policy/agent mode uses predecessor `policy.bibhu-usdc.testnet` and path `<user>/solana-1`, a different Solana address (for `bibhu-usdc.testnet`: `5NdtJHkHvpayzyX4DmWniVNz7s1W4785BPqPuWJmo9Ao`). The policy contract is deployed at `policy.bibhu-usdc.testnet`.
+Human mode uses the user's NEAR account as the derivation predecessor (example: `bibhu-usdc.testnet` + `solana-1` = `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`). Policy/agent mode uses predecessor `policy.quietsend.testnet` and path `<user>/solana-1`, a different Solana address (for `bibhu-usdc.testnet`: `JCv6ZtSqwsfukZV7Cp6eERFhw85Y48fTF1ZW6Eca7HZm`). The policy contract is deployed at `policy.quietsend.testnet`. The same contract signs USDC on Base Sepolia from the EVM address derived with path `<user>/evm-1` and secp256k1 (for `bibhu-usdc.testnet`: `0x906f0d04f6b07644a8acfe76a167ae7a859af817`).
 
 ## Honest privacy
 
@@ -50,7 +50,7 @@ npx tsx web/scripts/verify-lib.ts
 
 ## MCP server (agents)
 
-Local stdio server. Tools: `get_address_and_balance`, `quote_send`, `send` (mode `normal` or `hide_recipient`; signer backend `human` or `policy`), `get_receipt`. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
+Local stdio server. Tools: `get_address_and_balance`, `quote_send`, `send` (chain `solana-devnet` or `base-sepolia`; mode `normal` or `hide_recipient`; signer backend `human` or `policy`), `fetch_paid` (HTTP 402), `get_receipt`. Set `NEAR_ACCOUNT` to your account; there is no default. One-time setup: `NEAR_ACCOUNT=you.testnet npm run setup-agent`. Full guide: docs/INTEGRATING.md. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
 
 ```bash
 npx tsx mcp/server.ts
@@ -63,13 +63,27 @@ Claude Desktop / Claude Code config (stdio):
   "mcpServers": {
     "quietsend": {
       "command": "npx",
-      "args": ["tsx", "/absolute/path/to/quietsend/mcp/server.ts"]
+      "args": ["tsx", "/absolute/path/to/quietsend/mcp/server.ts"],
+      "env": { "NEAR_ACCOUNT": "you.testnet" }
     }
   }
 }
 ```
 
-`signer_backend=policy` calls `sign_for_caller` on `policy.bibhu-usdc.testnet` using a function-call key at `.keys/<account>.policy-fc.json` (never the full-access key). The contract returns `{ status: "signed" | "needs_approval" | "rejected" }`. If the contract is not deployed, the tool returns the error `policy contract not deployed yet`.
+`signer_backend=policy` calls `sign_for_caller` on `policy.quietsend.testnet` using a function-call key at `.keys/<account>.policy-fc.json` (never the full-access key). The contract returns `{ status: "signed" | "needs_approval" | "rejected" }`. If the contract is not deployed, the tool returns the error `policy contract not deployed yet`.
+
+## Base Sepolia and HTTP 402
+
+- `send` with `chain: "base-sepolia"` sends USDC from the agent's EVM address through `sign_evm_for_caller`. The contract builds an EIP-3009 `transferWithAuthorization` digest for USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` itself and signs only that. A relayer submits it and pays gas: the agent address needs USDC only, never ETH. `mode` must be `normal`; hide-recipient is Solana-only. The relayer key is `.keys/base-relayer.json`.
+- `fetch_paid { url, max_amount_usdc }` GETs a URL. On HTTP 402 with an x402 `exact` USDC offer on `base-sepolia`, it signs the payment through the policy contract and retries with `X-PAYMENT`; the paid server settles it. `max_amount_usdc` is a per-call ceiling on top of the contract's limits. Over-limit returns `needs_approval` and pays nothing.
+- Limits are one USDC budget across Solana and Base.
+
+Proven on Base Sepolia (14 Nov 2026):
+
+- Agent send, 0.01 USDC, gasless (relayer paid gas): https://sepolia.basescan.org/tx/0x9f97ba15033da937bf1d345a401f5f310a27ac28c1aaa2651a1b1698ce25bd75
+- Same send through the MCP `send` tool: https://sepolia.basescan.org/tx/0x98e23fcabbe41b4de392c1df1c5b960fb1e138952d030a8fda0724158cda89aa
+- HTTP 402 payment through the MCP `fetch_paid` tool (the paid server settled it): https://sepolia.basescan.org/tx/0x39cf7150062d714d12a51421f67e592c544b41a56f360179440285bfa7ddfb53
+- Over the per-transfer limit (2 USDC): `needs_approval`, intent 1, nothing signed. Over the hard cap (6 USDC): refused.
 
 ## Proven devnet transactions
 

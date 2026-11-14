@@ -11,7 +11,12 @@ export const KEYS_DIR = resolve(ROOT, ".keys");
 loadEnv({ path: resolve(ROOT, ".env.local"), quiet: true });
 loadEnv({ path: resolve(ROOT, ".env"), quiet: true });
 
-export const DEFAULT_ACCOUNT = process.env.NEAR_ACCOUNT ?? "bibhu-usdc.testnet";
+/** The NEAR account to act for: the explicit argument, else NEAR_ACCOUNT. No built-in default. */
+export function resolveAccount(given?: string): string {
+  const a = given || process.env.NEAR_ACCOUNT;
+  if (!a) throw new Error("No NEAR account. Set NEAR_ACCOUNT (e.g. NEAR_ACCOUNT=you.testnet) or pass near_account.");
+  return a;
+}
 
 export function loadPrivateKey(accountId: string): string {
   if (process.env.NEAR_PRIVATE_KEY) return process.env.NEAR_PRIVATE_KEY;
@@ -54,4 +59,15 @@ export function hasPolicyKey(accountId: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** EVM relayer (pays gas for gasless USDC transfers). Testnet only; holds gas money, never user funds. */
+export function loadRelayerKey(): `0x${string}` {
+  if (process.env.EVM_RELAYER_PRIVATE_KEY) return process.env.EVM_RELAYER_PRIVATE_KEY as `0x${string}`;
+  const keyFile = resolve(KEYS_DIR, "base-relayer.json");
+  if (existsSync(keyFile)) {
+    const j = JSON.parse(readFileSync(keyFile, "utf8")) as { private_key?: string };
+    if (typeof j.private_key === "string" && /^0x[0-9a-fA-F]{64}$/.test(j.private_key)) return j.private_key as `0x${string}`;
+  }
+  throw new Error("No EVM relayer key. Put a gitignored key file at .keys/base-relayer.json (never print the key).");
 }

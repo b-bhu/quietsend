@@ -12,6 +12,13 @@
 //! sends a MagicBlock v0 transaction the contract cannot parse, so it is rejected
 //! unless the user opts in with `allow_hide_unverified` (amount/recipient are then
 //! NOT bound to the payload).
+//!
+//! EVM (`sign_evm_for_caller`): the contract builds an EIP-3009
+//! transferWithAuthorization digest for a known USDC contract and signs only
+//! that (path `<predecessor>/evm-1`, secp256k1). A relayer submits it and pays
+//! gas, so the agent's EVM address never needs ETH. See evm.rs. Every chain
+//! shares one USDC budget: per_transfer, daily and cap count across chains.
+pub mod evm;
 pub mod payload;
 
 use near_sdk::json_types::{U128, U64};
@@ -24,6 +31,9 @@ use near_sdk::{
 
 pub const PATH_SUFFIX: &str = "solana-1";
 pub const DOMAIN_ID: u32 = 1; // Ed25519 on v1.signer-prod.testnet
+pub const EVM_PATH_SUFFIX: &str = "evm-1";
+pub const EVM_DOMAIN_ID: u32 = 0; // secp256k1 (ECDSA) on v1.signer-prod.testnet
+pub const MAX_AUTH_WINDOW_S: u64 = 3_600; // an EVM authorization expires within 1h
 pub const DAY_NS: u64 = 86_400_000_000_000;
 pub const APPROVAL_TTL_NS: u64 = DAY_NS; // an approval can be used within 24h
 pub const MAX_PENDING: u32 = 20;
@@ -181,7 +191,17 @@ impl Contract {
         require!(per_transfer.0 <= cap.0, "per_transfer must be <= cap");
         require!(allowlist.len() <= MAX_ALLOWLIST, "allowlist too long");
         for r in &allowlist {
-            payload::decode_key(r).unwrap_or_else(|e| env::panic_str(&e));
+            // Solana base58 key, or "<evm-chain>:0x<address>" (stored lowercase)
+            match r.split_once(':') {
+                Some((chain, a)) => {
+                    require!(evm::chain(chain).is_some(), format!("unsupported chain in allowlist: {r}"));
+                    let addr = evm::parse_addr(a).unwrap_or_else(|e| env::panic_str(&e));
+                    require!(&evm::addr_label(chain, &addr) == r, format!("write EVM allowlist entries in lowercase: {r}"));
+                }
+                None => {
+                    payload::decode_key(r).unwrap_or_else(|e| env::panic_str(&e));
+                }
+            }
         }
         let (spent_today, day, pending) = match self.policies.get(&user) {
             Some(old) => (old.spent_today, old.day, old.pending),
@@ -217,7 +237,7 @@ impl Contract {
                 return PromiseOrValue::Value(SignResult::Rejected { reason: format!($($t)*) })
             };
         }
-        let Some(mut policy) = self.policies.get(&user).cloned() else {
+        let Some(policy) = self.policies.get(&user).cloned() else {
             reject!("no policy set for {user}; call set_policy first")
         };
         if mode != "normal" && mode != "hide_recipient" {
@@ -241,6 +261,183 @@ impl Contract {
             reject!("hide_recipient payloads cannot be verified on-chain; enable allow_hide_unverified to allow")
         }
 
+        let path = Self::path_for(&user);
+        self.gate_and_sign(user, recipient, amount, mode, path, json!({ "Eddsa": payload_hex }), DOMAIN_ID)
+    }
+
+    /// The agent asks for a USDC "gasless" authorization (EIP-3009) on an EVM chain.
+    /// The contract builds the EIP-712 digest itself, so the signature can only
+    /// move exactly `amount` USDC to `recipient` on `chain`. Same limits, same
+    /// daily budget and same approval flow as Solana sends.
+    pub fn sign_evm_for_caller(
+        &mut self,
+        chain: String,
+        from: String,
+        recipient: String,
+        amount: U128,
+        valid_before: U64,
+        nonce_hex: String,
+    ) -> PromiseOrValue<SignResult> {
+        let user = env::predecessor_account_id();
+        macro_rules! reject {
+            ($($t:tt)*) => {
+                return PromiseOrValue::Value(SignResult::Rejected { reason: format!($($t)*) })
+            };
+        }
+        let Some(c) = evm::chain(&chain) else { reject!("unsupported chain {chain}") };
+        let from = match evm::parse_addr(&from) { Ok(a) => a, Err(e) => reject!("from: {e}") };
+        let to = match evm::parse_addr(&recipient) { Ok(a) => a, Err(e) => reject!("recipient: {e}") };
+        let Ok(nonce_bytes) = hex_decode(nonce_hex.trim_start_matches("0x")) else { reject!("nonce is not hex") };
+        let Ok(nonce) = <[u8; 32]>::try_from(nonce_bytes.as_slice()) else { reject!("nonce must be 32 bytes") };
+        let now_s = env::block_timestamp() / 1_000_000_000;
+        if valid_before.0 <= now_s || valid_before.0 > now_s + MAX_AUTH_WINDOW_S {
+            reject!("valid_before must be within the next {MAX_AUTH_WINDOW_S} seconds")
+        }
+        let digest = evm::transfer_with_authorization_digest(c, &from, &to, amount.0, 0, valid_before.0, &nonce);
+        let digest_hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+        let label = evm::addr_label(&chain, &to);
+        let path = Self::evm_path_for(&user);
+        self.gate_and_sign(user, label, amount, chain, path, json!({ "Ecdsa": digest_hex }), EVM_DOMAIN_ID)
+    }
+
+
+    #[private]
+    pub fn on_signed(
+        &mut self,
+        user: AccountId,
+        amount: U128,
+        day: u64,
+        spent_after: u128,
+        consumed: Option<Intent>,
+        path: String,
+        #[callback_result] result: Result<Value, PromiseError>,
+    ) -> SignResult {
+        match result {
+            Ok(signature) => SignResult::Signed {
+                signature,
+                path,
+                spent_today: U128(spent_after),
+            },
+            Err(_) => {
+                // Signer failed or timed out: refund the reservation.
+                let cur = self.prepaid.get(&user).copied().unwrap_or(0);
+                self.prepaid.insert(user.clone(), cur + 1);
+                if let Some(mut p) = self.policies.get(&user).cloned() {
+                    if p.day == day {
+                        p.spent_today = U128(p.spent_today.0.saturating_sub(amount.0));
+                    }
+                    if let Some(i) = consumed {
+                        let key = intent_key(&user, &i.recipient, i.amount.0, &i.mode);
+                        if self.intent_index.get(&key).is_none() {
+                            let id = self.next_intent;
+                            self.next_intent += 1;
+                            self.intents.insert(id, i);
+                            self.intent_index.insert(key, id);
+                            p.pending += 1;
+                        }
+                    }
+                    self.policies.insert(user, p);
+                }
+                SignResult::Rejected { reason: "signer call failed; reservation refunded".into() }
+            }
+        }
+    }
+
+    /// The user approves a pending intent (1 yoctoNEAR, so an agent key cannot).
+    #[payable]
+    pub fn approve_intent(&mut self, id: U64) {
+        assert_one_yocto();
+        let user = env::predecessor_account_id();
+        let mut intent = self.intents.get(&id.0).cloned().unwrap_or_else(|| env::panic_str("no such intent"));
+        require!(intent.user == user, "not your intent");
+        require!(intent.approved_ns.is_none(), "already approved");
+        intent.approved_ns = Some(U64(env::block_timestamp()));
+        self.intents.insert(id.0, intent);
+    }
+
+    /// The user deletes a pending or approved intent (1 yoctoNEAR).
+    #[payable]
+    pub fn cancel_intent(&mut self, id: U64) {
+        assert_one_yocto();
+        let user = env::predecessor_account_id();
+        let intent = self.intents.get(&id.0).cloned().unwrap_or_else(|| env::panic_str("no such intent"));
+        require!(intent.user == user, "not your intent");
+        let key = intent_key(&user, &intent.recipient, intent.amount.0, &intent.mode);
+        let mut p = self.policies.get(&user).cloned().unwrap_or_else(|| env::panic_str("no policy"));
+        self.remove_intent(id.0, &key, &mut p);
+        self.policies.insert(user, p);
+    }
+
+    // ---- views ----
+
+    pub fn get_policy(&self, account_id: AccountId) -> Option<Policy> {
+        self.policies.get(&account_id).cloned().map(|mut p| {
+            if p.day != env::block_timestamp() / DAY_NS {
+                p.spent_today = U128(0);
+            }
+            p
+        })
+    }
+
+    pub fn get_intent(&self, id: U64) -> Option<Intent> {
+        self.intents.get(&id.0).cloned()
+    }
+
+    pub fn get_prepaid(&self, account_id: AccountId) -> U128 {
+        U128(self.prepaid.get(&account_id).copied().unwrap_or(0))
+    }
+
+    /// The MPC derivation path used for this account: `<account>/solana-1`.
+    pub fn derived_path(&self, account_id: AccountId) -> String {
+        Self::path_for(&account_id)
+    }
+
+    /// The MPC derivation path for this account's EVM address: `<account>/evm-1`.
+    pub fn derived_evm_path(&self, account_id: AccountId) -> String {
+        Self::evm_path_for(&account_id)
+    }
+
+    pub fn get_config(&self) -> Value {
+        let chains: Vec<Value> = evm::CHAINS
+            .iter()
+            .map(|c| json!({ "chain": c.name, "chain_id": c.chain_id, "usdc": c.usdc }))
+            .collect();
+        json!({ "owner": self.owner, "mpc": self.mpc, "usdc_mint": self.usdc_mint, "domain_id": DOMAIN_ID,
+                "evm_domain_id": EVM_DOMAIN_ID, "evm_chains": chains })
+    }
+}
+
+impl Contract {
+    fn path_for(user: &AccountId) -> String {
+        format!("{user}/{PATH_SUFFIX}")
+    }
+
+    fn evm_path_for(user: &AccountId) -> String {
+        format!("{user}/{EVM_PATH_SUFFIX}")
+    }
+
+    /// Shared by every chain: prepaid check, limits, approvals, spend reservation,
+    /// then the MPC call. `recipient` is the allowlist/intent label and `mode`
+    /// the intent mode ("normal", "hide_recipient" or an EVM chain name).
+    #[allow(clippy::too_many_arguments)]
+    fn gate_and_sign(
+        &mut self,
+        user: AccountId,
+        recipient: String,
+        amount: U128,
+        mode: String,
+        path: String,
+        payload_v2: Value,
+        domain_id: u32,
+    ) -> PromiseOrValue<SignResult> {
+        macro_rules! reject {
+            ($($t:tt)*) => {
+                return PromiseOrValue::Value(SignResult::Rejected { reason: format!($($t)*) })
+            };
+        }
+        let Some(mut policy) = self.policies.get(&user).cloned() else {
+            reject!("no policy set for {user}; call set_policy first")
+        };
         let prepaid = self.prepaid.get(&user).copied().unwrap_or(0);
         if prepaid < 1 {
             reject!("prepaid balance is empty; call deposit")
@@ -322,9 +519,8 @@ impl Contract {
         self.policies.insert(user.clone(), policy.clone());
         self.prepaid.insert(user.clone(), prepaid - 1);
 
-        let path = Self::path_for(&user);
         let args = json!({
-            "request": { "path": path, "payload_v2": { "Eddsa": payload_hex }, "domain_id": DOMAIN_ID }
+            "request": { "path": path, "payload_v2": payload_v2, "domain_id": domain_id }
         })
         .to_string()
         .into_bytes();
@@ -335,109 +531,9 @@ impl Contract {
                 .then(
                     Self::ext(env::current_account_id())
                         .with_static_gas(CALLBACK_GAS)
-                        .on_signed(user, amount, today, spent + amount.0, consumed),
+                        .on_signed(user, amount, today, spent + amount.0, consumed, path),
                 ),
         )
-    }
-
-    #[private]
-    pub fn on_signed(
-        &mut self,
-        user: AccountId,
-        amount: U128,
-        day: u64,
-        spent_after: u128,
-        consumed: Option<Intent>,
-        #[callback_result] result: Result<Value, PromiseError>,
-    ) -> SignResult {
-        match result {
-            Ok(signature) => SignResult::Signed {
-                signature,
-                path: Self::path_for(&user),
-                spent_today: U128(spent_after),
-            },
-            Err(_) => {
-                // Signer failed or timed out: refund the reservation.
-                let cur = self.prepaid.get(&user).copied().unwrap_or(0);
-                self.prepaid.insert(user.clone(), cur + 1);
-                if let Some(mut p) = self.policies.get(&user).cloned() {
-                    if p.day == day {
-                        p.spent_today = U128(p.spent_today.0.saturating_sub(amount.0));
-                    }
-                    if let Some(i) = consumed {
-                        let key = intent_key(&user, &i.recipient, i.amount.0, &i.mode);
-                        if self.intent_index.get(&key).is_none() {
-                            let id = self.next_intent;
-                            self.next_intent += 1;
-                            self.intents.insert(id, i);
-                            self.intent_index.insert(key, id);
-                            p.pending += 1;
-                        }
-                    }
-                    self.policies.insert(user, p);
-                }
-                SignResult::Rejected { reason: "signer call failed; reservation refunded".into() }
-            }
-        }
-    }
-
-    /// The user approves a pending intent (1 yoctoNEAR, so an agent key cannot).
-    #[payable]
-    pub fn approve_intent(&mut self, id: U64) {
-        assert_one_yocto();
-        let user = env::predecessor_account_id();
-        let mut intent = self.intents.get(&id.0).cloned().unwrap_or_else(|| env::panic_str("no such intent"));
-        require!(intent.user == user, "not your intent");
-        require!(intent.approved_ns.is_none(), "already approved");
-        intent.approved_ns = Some(U64(env::block_timestamp()));
-        self.intents.insert(id.0, intent);
-    }
-
-    /// The user deletes a pending or approved intent (1 yoctoNEAR).
-    #[payable]
-    pub fn cancel_intent(&mut self, id: U64) {
-        assert_one_yocto();
-        let user = env::predecessor_account_id();
-        let intent = self.intents.get(&id.0).cloned().unwrap_or_else(|| env::panic_str("no such intent"));
-        require!(intent.user == user, "not your intent");
-        let key = intent_key(&user, &intent.recipient, intent.amount.0, &intent.mode);
-        let mut p = self.policies.get(&user).cloned().unwrap_or_else(|| env::panic_str("no policy"));
-        self.remove_intent(id.0, &key, &mut p);
-        self.policies.insert(user, p);
-    }
-
-    // ---- views ----
-
-    pub fn get_policy(&self, account_id: AccountId) -> Option<Policy> {
-        self.policies.get(&account_id).cloned().map(|mut p| {
-            if p.day != env::block_timestamp() / DAY_NS {
-                p.spent_today = U128(0);
-            }
-            p
-        })
-    }
-
-    pub fn get_intent(&self, id: U64) -> Option<Intent> {
-        self.intents.get(&id.0).cloned()
-    }
-
-    pub fn get_prepaid(&self, account_id: AccountId) -> U128 {
-        U128(self.prepaid.get(&account_id).copied().unwrap_or(0))
-    }
-
-    /// The MPC derivation path used for this account: `<account>/solana-1`.
-    pub fn derived_path(&self, account_id: AccountId) -> String {
-        Self::path_for(&account_id)
-    }
-
-    pub fn get_config(&self) -> Value {
-        json!({ "owner": self.owner, "mpc": self.mpc, "usdc_mint": self.usdc_mint, "domain_id": DOMAIN_ID })
-    }
-}
-
-impl Contract {
-    fn path_for(user: &AccountId) -> String {
-        format!("{user}/{PATH_SUFFIX}")
     }
 
     fn remove_intent(&mut self, id: u64, key: &str, policy: &mut Policy) {
@@ -636,6 +732,98 @@ mod tests {
         let mut c = setup();
         ctx("alice.testnet", 0, 0);
         c.set_policy(U128(1), U128(1), U128(1), None, None);
+    }
+
+    const FROM: &str = "0x906f0d04f6b07644a8acfe76a167ae7a859af817";
+    const TO: &str = "0x1111111111111111111111111111111111111111";
+    const NONCE: &str = "0x0101010101010101010101010101010101010101010101010101010101010101";
+    const NOW_S: u64 = 5 * 86_400; // 5 * DAY_NS in seconds
+
+    fn evm(c: &mut Contract, amount: u128, valid_before: u64) -> Option<SignResult> {
+        result(c.sign_evm_for_caller(
+            "base-sepolia".into(), FROM.into(), TO.into(), U128(amount), U64(valid_before), NONCE.into(),
+        ))
+    }
+
+    #[test]
+    fn evm_under_cap_signs_and_shares_the_daily_budget() {
+        let mut c = setup();
+        set(&mut c); // per 1, daily 3, cap 5 USDC
+        // fresh context per call: the mocked VM accumulates used gas within one context
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        assert!(evm(&mut c, 1_000_000, NOW_S + 600).is_none(), "expected a signer promise");
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        assert!(result(c.sign_for_caller(msg(1_000_000), REC.into(), U128(1_000_000), "normal".into())).is_none());
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        assert!(evm(&mut c, 1_000_000, NOW_S + 600).is_none());
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        // 3 USDC spent across Solana + Base: the 4th needs approval on either chain
+        assert!(matches!(evm(&mut c, 1_000_000, NOW_S + 600), Some(SignResult::NeedsApproval { .. })));
+        assert_eq!(c.get_policy("alice.testnet".parse().unwrap()).unwrap().spent_today.0, 3_000_000);
+    }
+
+    #[test]
+    fn evm_over_per_transfer_needs_approval_then_passes_once() {
+        let mut c = setup();
+        set(&mut c);
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        let Some(SignResult::NeedsApproval { intent_id, .. }) = evm(&mut c, 2_000_000, NOW_S + 600) else {
+            panic!("expected needs_approval")
+        };
+        assert_eq!(c.get_intent(intent_id).unwrap().recipient, format!("base-sepolia:{TO}"));
+        ctx("alice.testnet", 1, 5 * DAY_NS + 10);
+        c.approve_intent(intent_id);
+        ctx("alice.testnet", 0, 5 * DAY_NS + 20);
+        assert!(evm(&mut c, 2_000_000, NOW_S + 600).is_none());
+        ctx("alice.testnet", 0, 5 * DAY_NS + 21);
+        assert!(matches!(evm(&mut c, 2_000_000, NOW_S + 600), Some(SignResult::NeedsApproval { .. })));
+    }
+
+    #[test]
+    fn evm_rejects_bad_inputs_without_spending() {
+        let mut c = setup();
+        set(&mut c);
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        assert!(matches!(evm(&mut c, 6_000_000, NOW_S + 600), Some(SignResult::Rejected { .. })), "above cap");
+        assert!(matches!(evm(&mut c, 1, NOW_S), Some(SignResult::Rejected { .. })), "already expired");
+        assert!(matches!(evm(&mut c, 1, NOW_S + 3_601), Some(SignResult::Rejected { .. })), "window too long");
+        let r = result(c.sign_evm_for_caller("ethereum".into(), FROM.into(), TO.into(), U128(1), U64(NOW_S + 60), NONCE.into()));
+        assert!(matches!(r, Some(SignResult::Rejected { .. })), "unsupported chain");
+        let r = result(c.sign_evm_for_caller("base-sepolia".into(), FROM.into(), REC.into(), U128(1), U64(NOW_S + 60), NONCE.into()));
+        assert!(matches!(r, Some(SignResult::Rejected { .. })), "Solana address as EVM recipient");
+        let r = result(c.sign_evm_for_caller("base-sepolia".into(), FROM.into(), TO.into(), U128(1), U64(NOW_S + 60), "0x01".into()));
+        assert!(matches!(r, Some(SignResult::Rejected { .. })), "short nonce");
+        assert_eq!(c.get_prepaid("alice.testnet".parse().unwrap()).0, 1000);
+        assert_eq!(c.get_policy("alice.testnet".parse().unwrap()).unwrap().spent_today.0, 0);
+    }
+
+    #[test]
+    fn evm_allowlist_entries() {
+        let mut c = setup();
+        ctx("alice.testnet", 1, 5 * DAY_NS);
+        c.set_policy(U128(1_000_000), U128(3_000_000), U128(5_000_000), Some(vec![format!("base-sepolia:{TO}"), REC.into()]), None);
+        ctx("alice.testnet", 1_000, 5 * DAY_NS);
+        c.deposit();
+        ctx("alice.testnet", 0, 5 * DAY_NS);
+        assert!(evm(&mut c, 1, NOW_S + 60).is_none(), "allowlisted EVM recipient passes");
+        let r = result(c.sign_evm_for_caller(
+            "base-sepolia".into(), FROM.into(), "0x2222222222222222222222222222222222222222".into(), U128(1), U64(NOW_S + 60), NONCE.into(),
+        ));
+        assert!(matches!(r, Some(SignResult::NeedsApproval { .. })), "other recipient needs approval");
+    }
+
+    #[test]
+    #[should_panic(expected = "lowercase")]
+    fn evm_allowlist_must_be_lowercase() {
+        let mut c = setup();
+        ctx("alice.testnet", 1, 0);
+        c.set_policy(U128(1), U128(1), U128(1), Some(vec!["base-sepolia:0xABCDEF0000000000000000000000000000000001".into()]), None);
+    }
+
+    #[test]
+    fn evm_path_is_separate_from_solana_path() {
+        let c = setup();
+        assert_eq!(c.derived_evm_path("alice.testnet".parse().unwrap()), "alice.testnet/evm-1");
     }
 
     #[test]

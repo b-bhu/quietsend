@@ -27,7 +27,7 @@ import {
   ROOT, SIGN_DEPOSIT_YOCTONEAR, SIGN_GAS, SIGNER_CONTRACT, TOKEN_DECIMALS,
 } from "./config.ts";
 
-const POLICY = process.env.POLICY_ACCOUNT ?? `policy.${NEAR_ACCOUNT}`;
+const POLICY = process.env.POLICY_ACCOUNT ?? "policy.quietsend.testnet"; // was policy.bibhu-usdc.testnet until 14 Nov 2026
 const RECIPIENT = new PublicKey("7iNJ7CLNT8UBPANxkkrsURjzaktbomCVa93N1sKcVo9C");
 const RPC = process.env.SOLANA_RPC ?? "https://solana-devnet.api.onfinality.io/public";
 const USDC = (n: number) => BigInt(Math.round(n * 10 ** TOKEN_DECIMALS));
@@ -111,7 +111,7 @@ async function main() {
   if (!hasKey) {
     const o = await owner.signAndSendTransaction({
       receiverId: NEAR_ACCOUNT,
-      actions: [actionCreators.addKey(fcKp.getPublicKey(), actionCreators.functionCallAccessKey(POLICY, ["sign_for_caller"], 10n ** 24n))],
+      actions: [actionCreators.addKey(fcKp.getPublicKey(), actionCreators.functionCallAccessKey(POLICY, ["sign_for_caller", "sign_evm_for_caller"], 10n ** 24n))],
     });
     console.log("added function-call key", fcPub, "->", nb(o.transaction.hash)); links.addFcKey = nb(o.transaction.hash);
   } else console.log("function-call key present:", fcPub);

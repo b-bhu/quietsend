@@ -4,13 +4,13 @@
 
 Send Solana devnet USDC with only a NEAR account — no Solana private key exists anywhere. The sending is the test harness. The contribution is the guard that sits between an untrusted transaction builder and an MPC network that signs without asking questions.
 
-**Status: NEAR testnet + Solana devnet only.** Nothing here touches mainnet. Devnet USDC has no value.
+**Status: NEAR testnet, Solana devnet and Base Sepolia only.** Nothing here touches mainnet. Test USDC has no value.
 
 ```bash
 npm install && npm test
 ```
 
-44 tests, no network, no wallet, under a second. Most of them are hostile transactions the guard refuses, each for a named reason.
+55 tests (plus 25 in the Rust contract), no network, no wallet, about a second. Most of them are hostile transactions the guard refuses, each for a named reason.
 
 ---
 
@@ -150,9 +150,25 @@ The architectural fix, and the sharpest point in this design:
 
 > A NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR (`SIGN_DEPOSIT_YOCTO`, `web/src/lib/config.ts:17`). So an agent holding a function-call key **cannot reach the signer at all.** Route it through a contract that performs these checks on-chain and the architecture *enforces* the boundary instead of asking politely.
 
-**This is built.** `contract/src/lib.rs` is deployed at `policy.bibhu-usdc.testnet`, and `mcp/server.ts` is the agent-facing front door (`npm run mcp`). The contract enforces a per-transfer limit and a daily limit, holds anything over them as an intent until `approve_intent`, and binds the payload it signs. End-to-end proof: `scripts/p-01-policy-e2e.ts`.
+**This is built.** `contract/src/lib.rs` is deployed at `policy.quietsend.testnet`, and `mcp/server.ts` is the agent-facing front door (`npm run mcp`). The contract enforces a per-transfer limit and a daily limit, holds anything over them as an intent until `approve_intent`, and binds the payload it signs. End-to-end proof: `scripts/p-01-policy-e2e.ts`.
 
-Addresses differ between the two paths: policy mode derives from predecessor `policy.bibhu-usdc.testnet` with path `<user>/solana-1`, not from the user's own account. See [llms.txt](llms.txt).
+Addresses differ between the two paths: policy mode derives from predecessor `policy.quietsend.testnet` with path `<user>/solana-1`, not from the user's own account. See [llms.txt](llms.txt). (The first contract, `policy.bibhu-usdc.testnet`, is still live so older links keep working; it has no EVM support.)
+
+### Base Sepolia, gasless, under the same limits
+
+The same contract signs USDC on **Base Sepolia** (`sign_evm_for_caller`). It never parses an Ethereum transaction: it builds an [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) `transferWithAuthorization` digest itself, for the known USDC contract, and asks the MPC to sign only that (secp256k1, path `<user>/evm-1`). The signature can mean one thing: *exactly this amount, to this address, on this chain, valid for at most an hour.* A relayer submits it and pays the gas, so **the agent's EVM address holds USDC and never needs ETH**. The relayer cannot change the amount or recipient without breaking the signature; the worst it can do is not submit.
+
+- **One USDC budget across chains.** `per_transfer`, `daily` and `cap` count Solana and Base sends together.
+- **Checked twice.** The client rebuilds the digest independently (viem) and refuses unless the signature recovers to the agent's derived address; a Rust test and a TypeScript test assert the same digest for the same inputs.
+- **HTTP 402.** The MCP tool `fetch_paid` pays an [x402](https://x402.org) `exact` offer: the agent signs through the contract (limits apply, over-limit returns `needs_approval`), the paid server settles and pays gas. Try it: `npx tsx scripts/x402-demo-server.ts` then `npx tsx scripts/x402-01-fetch.ts`.
+- **Hide-recipient is Solana-only.** On Base a send is a normal public USDC transfer.
+
+Proof on Base Sepolia (14 Nov 2026), agent `0x906f0d04f6b07644a8acfe76a167ae7a859af817`:
+
+- Agent send, 0.01 USDC, gasless (relayer paid gas): https://sepolia.basescan.org/tx/0x9f97ba15033da937bf1d345a401f5f310a27ac28c1aaa2651a1b1698ce25bd75
+- Same send through the MCP `send` tool: https://sepolia.basescan.org/tx/0x98e23fcabbe41b4de392c1df1c5b960fb1e138952d030a8fda0724158cda89aa
+- HTTP 402 payment through the MCP `fetch_paid` tool (the paid server settled it): https://sepolia.basescan.org/tx/0x39cf7150062d714d12a51421f67e592c544b41a56f360179440285bfa7ddfb53
+- Over the per-transfer limit (2 USDC): `needs_approval`, intent 1, nothing signed. Over the hard cap (6 USDC): refused.
 
 **Full threat model, including what the guard does not protect against: [docs/SECURITY.md](docs/SECURITY.md).**
 
@@ -160,11 +176,11 @@ Addresses differ between the two paths: policy mode derives from predecessor `po
 
 ## Calling it from an agent or a Node process
 
-[docs/INTEGRATING.md](docs/INTEGRATING.md) — one function, one interface you implement, and a working non-browser wallet in about twenty lines. `web/scripts/verify-lib.ts` is the reference caller and has made real devnet sends.
+**[Developer guide](docs/INTEGRATING.md)**: set up an agent for your own NEAR account (`NEAR_ACCOUNT=you.testnet npm run setup-agent`), connect it to Claude Code, Claude Desktop, Cursor or VS Code, and call it from Node. `web/scripts/verify-lib.ts` is a reference caller for direct human-mode sends.
 
 The thing to read first: a NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR — so an agent's restricted key cannot reach the signer directly. The policy contract turns that into the design: the agent's key only reaches the contract, and the contract decides whether to sign, applying a per-transfer limit, a daily limit, and human approval for anything above them.
 
-When the app is running, the docs are served at `/docs/` and `/llms.txt` points an agent at them.
+When the app is running, the guide is at `#/docs` and `/llms.txt` is the plain-text entry point for agents.
 
 ---
 
@@ -179,7 +195,7 @@ web/                          Vite + React + TypeScript app, no backend
   src/lib/                    derive, build, guard, sign, broadcast, poll, inspect
   scripts/verify-lib.ts       headless verification of src/lib against live devnet
 scripts/                      step-by-step Node scripts (00-create-account … 06-fund-user)
-docs/INTEGRATING.md           for agents and developers: the one function to call
+docs/INTEGRATING.md           developer guide: setup, connect, tools, limits (rendered at #/docs)
 docs/SECURITY.md              threat model: what the guard does and does not protect
 web/public/llms.txt           agent-facing entry point, served at /llms.txt
 docs/next-version.md          merged technical review: where this goes next

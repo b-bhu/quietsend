@@ -48,6 +48,7 @@ export {
   mpcSignViaWallet,
   mpcSignViaKey,
   mpcSignViaPolicy,
+  mpcSignEvmViaPolicy,
   parseSignValue,
   viewPolicy,
   NeedsApprovalError,
@@ -104,3 +105,21 @@ export {
   type PrivacyRow,
   type Visibility,
 } from "./receipt";
+
+export {
+  EVM_CHAINS,
+  derivePolicyEvmAddress,
+  getEvmBalances,
+  authorizationDigest,
+  toVrs,
+  recoverAuthorizer,
+  randomNonce,
+  isEvmAddress,
+  sendEvmUsdc,
+  signEvmAuthorization,
+  relayAuthorization,
+  type SignedAuthorization,
+  type EvmChainName,
+  type Authorization,
+  type EvmSendResult,
+} from "./evm";

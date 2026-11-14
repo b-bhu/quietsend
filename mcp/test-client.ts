@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ACCOUNT = "bibhu-usdc.testnet";
 const EXPECTED = "7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27";
-const EXPECTED_POLICY = "5NdtJHkHvpayzyX4DmWniVNz7s1W4785BPqPuWJmo9Ao";
+const EXPECTED_POLICY = "JCv6ZtSqwsfukZV7Cp6eERFhw85Y48fTF1ZW6Eca7HZm"; // policy.quietsend.testnet + bibhu-usdc.testnet/solana-1
 const RECIPIENT = "7iNJ7CLNT8UBPANxkkrsURjzaktbomCVa93N1sKcVo9C";
 
 function parseTool(result: { content?: Array<{ type: string; text?: string }>; isError?: boolean; structuredContent?: unknown }) {

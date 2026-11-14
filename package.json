@@ -7,7 +7,8 @@
     "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json",
     "verify": "tsx scripts/verify.ts",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "setup-agent": "tsx scripts/setup-agent.ts"
   },
   "keywords": [],
   "author": "",

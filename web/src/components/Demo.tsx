@@ -150,12 +150,12 @@ export default function Demo() {
           <li>
             <b>The guard is not a security boundary.</b> It runs in this page, so whatever controls the page
             controls the guard. It defends against a hostile transaction builder, not a hostile frontend —{" "}
-            <a className="link" href="/docs/SECURITY.md" target="_blank" rel="noreferrer">read the security model</a>.
+            <a className="link" href="#/docs/security">read the security model</a>.
           </li>
           <li>
             <b>Plugging an agent in?</b> An agent goes through the MCP server and a NEAR policy contract
             that caps spend per transfer and per day and holds the rest for approval —{" "}
-            <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">
+            <a className="link" href="#/docs">
               Integrating
             </a>{" "}
             has the details. These checks are the layer below that, on the transaction itself.

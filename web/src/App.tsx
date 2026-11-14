@@ -4,6 +4,7 @@ import { loadPending } from "./lib/history";
 import { resumePending } from "./lib/send";
 import Landing from "./components/Landing";
 import Demo from "./components/Demo";
+import Docs from "./components/Docs";
 import Home from "./components/Home";
 import Send from "./components/Send";
 import Explorer from "./components/Explorer";
@@ -107,9 +108,19 @@ export default function App() {
         </div>
         <a className="logo mid" href="#/">quietsend</a>
         <div className="right">
+          {page.startsWith("docs") ? (
+            <a className="link" href="#/send">Send</a>
+          ) : (
+            <a className="link" href="#/docs">Docs</a>
+          )}
+          {page === "history" ? (
+            <a className="link" href="#/send">Send</a>
+          ) : (
+            <a className="link" href="#/history">History</a>
+          )}
           {session ? (
             <>
-              <span className="net" data-testid="account">{session.nearAccount}</span>
+              <a className="net" href="#/account" title="Your address" data-testid="account">{session.nearAccount}</a>
               <button className="ghost" onClick={disconnect}>Disconnect</button>
             </>
           ) : (
@@ -125,6 +136,8 @@ export default function App() {
         <Explorer id={route.slice("/tx/".length)} />
       ) : page === "demo" ? (
         <Demo />
+      ) : page.startsWith("docs") ? (
+        <Docs page={page.slice("docs/".length)} />
       ) : page === "history" ? (
         <History />
       ) : page === "account" && session ? (
@@ -132,15 +145,6 @@ export default function App() {
       ) : (
         <Send session={session} onConnect={connect} />
       )}
-
-      <footer className="app-foot">
-        <a className="link" href="#/send">Send</a>
-        <a className="link" href="#/history">History</a>
-        <a className="link" href="#/demo">What the guard refuses</a>
-        <a className="link" href="/docs/INTEGRATING.md" target="_blank" rel="noreferrer">Docs</a>
-        {session && <a className="link" href="#/account">Your address</a>}
-        <span className="net">NEAR testnet · Solana devnet</span>
-      </footer>
     </div>
   );
 }

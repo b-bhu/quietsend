@@ -1,6 +1,6 @@
 # quietsend
 
-Send Solana devnet USDC using only a NEAR testnet account, via NEAR Chain Signatures (MPC). No Solana private key is stored. This is testnet and devnet only. Devnet USDC has no real value. Do not use this on mainnet or with real funds.
+Send USDC on Solana devnet and Base Sepolia from a NEAR testnet account, via NEAR Chain Signatures (MPC). No Solana or Ethereum private key is stored. An agent can pay within limits the account owner sets on-chain. Live: https://quietsend.vercel.app (developer guide at https://quietsend.vercel.app/#/docs). Testnet only; test USDC has no real value. Do not use this on mainnet or with real funds.
 
 ## What it does
 

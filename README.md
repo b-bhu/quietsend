@@ -13,6 +13,8 @@
 
 ## Try it
 
+**Live:** https://quietsend.vercel.app · developer guide at [quietsend.vercel.app/#/docs](https://quietsend.vercel.app/#/docs)
+
 ```bash
 npm install && npm test
 ```

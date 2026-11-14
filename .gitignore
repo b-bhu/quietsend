@@ -10,3 +10,4 @@ web/public/llms.txt
 
 # large video cuts kept on disk, not in git history
 reviews/**/*.mp4
+.vercel

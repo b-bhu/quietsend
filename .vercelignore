@@ -1,0 +1,18 @@
+# What a `vercel` CLI deploy must never upload. The site builds from web/ and imports core/ and shared/.
+# Secrets
+.keys
+.env
+.env.*
+**/.env.local
+# Not needed to build the site
+node_modules
+**/node_modules
+contract/target
+video
+reviews
+docs/ad
+docs/shots
+docs/mocks
+out
+web/dist
+.claude

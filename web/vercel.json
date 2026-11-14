@@ -1,16 +1,25 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install --prefix .. && npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "headers": [
     {
       "source": "/docs/:path*.md",
       "headers": [
-        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" }
+        {
+          "key": "Content-Type",
+          "value": "text/markdown; charset=utf-8"
+        }
       ]
     },
     {
       "source": "/llms.txt",
       "headers": [
-        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        }
       ]
     }
   ]

@@ -106,11 +106,11 @@ async function main() {
 Your agent for ${account}:
   limits      ${arg("per", "1")} USDC per send · ${arg("daily", "3")} a day (all chains) · ${arg("cap", "5")} max
   Solana      ${sol}
-              fund with devnet USDC (faucet.circle.com) and ~0.05 SOL for fees
+              fund with devnet USDC (faucet.circle.com) and ~0.05 SOL (faucet.solana.com)
   Base        ${base}
               fund with Base Sepolia USDC only (faucet.circle.com); no ETH needed
   relayer     ${relayer}
-              fund with a little Base Sepolia ETH; it pays gas for your agent's Base sends`);
+              fund with a little Base Sepolia ETH (portal.cdp.coinbase.com/products/faucet); it pays gas for your agent's Base sends`);
 }
 
 main().catch((e) => {

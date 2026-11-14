@@ -32,6 +32,8 @@ async function main() {
     command: process.execPath,
     args: [resolve(ROOT, "node_modules/tsx/dist/cli.mjs"), resolve(ROOT, "mcp/server.ts")],
     cwd: ROOT,
+    // This client exercises human mode too, which the server only allows when asked.
+    env: { ...process.env, QUIETSEND_ALLOW_HUMAN: "1" } as Record<string, string>,
     stderr: "pipe",
   });
   transport.stderr?.on("data", (buf: Buffer) => {

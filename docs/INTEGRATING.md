@@ -18,11 +18,13 @@ NEAR_ACCOUNT=you.testnet npm run setup-agent -- --per 1 --daily 3 --cap 5
 
 This sets your limits, prepays signing fees, and creates the agent's key at `.keys/you.testnet.policy-fc.json`. That key can call only `sign_for_caller` and `sign_evm_for_caller`. The script then prints three addresses to fund:
 
-| Address | Fund with |
-|---|---|
-| Agent, Solana | devnet USDC and about 0.05 SOL |
-| Agent, Base | Base Sepolia USDC only, no ETH |
-| Relayer | a little Base Sepolia ETH. It pays gas for the agent's Base sends |
+| Address | Fund with | Where |
+|---|---|---|
+| Agent, Solana | devnet USDC and about 0.05 SOL | USDC: [faucet.circle.com](https://faucet.circle.com) (Solana Devnet). SOL: [faucet.solana.com](https://faucet.solana.com) |
+| Agent, Base | Base Sepolia USDC only, no ETH | [faucet.circle.com](https://faucet.circle.com) (Base Sepolia) |
+| Relayer | a little Base Sepolia ETH. It pays gas for the agent's Base sends | [Coinbase Developer Platform faucet](https://portal.cdp.coinbase.com/products/faucet) (sign-in, no mainnet balance needed) |
+
+Some Base Sepolia ETH faucets only pay addresses that hold mainnet ETH, which a new relayer never will. The Coinbase faucet does not have that rule. Alternatively, claim to your own wallet and forward a little.
 
 Re-run `setup-agent` with new values at any time to change the limits.
 
@@ -79,7 +81,7 @@ const page = await fetchPaid("https://api.example/paid", {
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `get_address_and_balance` | `chain?`, `mode?` (`human` / `policy`), `near_account?` | Derives the address and reads its balances |
+| `get_address_and_balance` | `chain?`, `mode?` (`policy` / `human`), `near_account?` | Derives the address and reads its balances |
 | `quote_send` | `recipient`, `amount_usdc`, `mode`, `signer_backend?` | Shows the fee and whether a Solana send would need approval. Sends nothing |
 | `send` | `recipient`, `amount_usdc`, `mode`, `chain?`, `signer_backend?` | Sends USDC |
 | `fetch_paid` | `url`, `max_amount_usdc` | GETs a URL. On HTTP 402 it pays (x402 v1, `exact`, USDC on `base-sepolia`) and retries |
@@ -87,7 +89,7 @@ const page = await fetchPaid("https://api.example/paid", {
 
 - **`chain`** is `solana-devnet` (the default) or `base-sepolia`.
 - **`mode`** is `normal` or `hide_recipient`. `hide_recipient` works on Solana only.
-- **`signer_backend: "policy"`** goes through the contract and its limits. `human` signs with your full-access key, with no limits. Agents should use `policy`. On Base it is always `policy`.
+- **`signer_backend`** defaults to `policy`: the contract and its limits. `human` signs with the account's full-access key, with no limits, and the server refuses it unless started with `QUIETSEND_ALLOW_HUMAN=1`. On Base it is always `policy`.
 
 Every agent send returns one of:
 
@@ -157,4 +159,4 @@ npm run verify
 cd contract && cargo test
 ```
 
-The first and third need no network or keys. `npm run verify` checks published devnet transactions and needs no keys. [SECURITY.md](SECURITY.md) covers what this does not protect against.
+The first and third need no network or keys. `npm run verify` needs no keys either: it checks the published Solana devnet transactions, and that each Base Sepolia proof moved USDC out of the contract-derived agent address, submitted by someone else. [SECURITY.md](SECURITY.md) covers what this does not protect against.

@@ -8,6 +8,8 @@ import {
   derivePolicySolanaAddress,
   deriveSolanaAddress,
   ataOf,
+  derivePolicyEvmAddress,
+  EVM_CHAINS,
   formatUsdc,
   getBalances,
   getConfig,
@@ -15,6 +17,7 @@ import {
   mpcSignViaKey,
   runSend,
 } from "../core/index.ts";
+import { publicClient as basePublicClient } from "../core/evm.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,6 +35,36 @@ const RECIPIENT = "7iNJ7CLNT8UBPANxkkrsURjzaktbomCVa93N1sKcVo9C";
 const NORMAL_TX = "3hUZ5hSAwM8XBsxkM1nGVwE2G6UxdwBjS8qaD1wmj3L7WUo9z8bGsZdzVCCZKfi3RpnKQica5tCb16snroE4uKgt";
 const HIDE_LEG1 = "2w2LRuLninNbG2MbWeCAczuJUaEW9yAxMhVR2GD1JmXEfWdBjvQYDETY6mPMX3uF1WqHPZnUB3CixhvfSLGfxKq7";
 const HIDE_LEG2 = "5cTHDqYssFJx2cfUuXe3LYEpz5f2Q3MfVNuFuqp9Qrw4PJ3WhzqYG1h6ZAD9aEG9HxJpZNAHe3jSJCxN7v88dsUk";
+
+// Published Base Sepolia transactions (README "Proof"): agent sends through the policy contract.
+const BASE_PROOF_ACCOUNT = "bibhu-usdc.testnet";
+const BASE_AGENT = "0x906f0d04f6b07644a8acfe76a167ae7a859af817";
+const BASE_PROOFS = [
+  { what: "agent send, 0.01 USDC", hash: "0x9f97ba15033da937bf1d345a401f5f310a27ac28c1aaa2651a1b1698ce25bd75" },
+  { what: "send through the MCP send tool", hash: "0x98e23fcabbe41b4de392c1df1c5b960fb1e138952d030a8fda0724158cda89aa" },
+  { what: "HTTP 402 payment through fetch_paid", hash: "0x39cf7150062d714d12a51421f67e592c544b41a56f360179440285bfa7ddfb53" },
+] as const;
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+/** Read-only: each Base proof moved USDC out of the contract-derived agent address, submitted by someone else. */
+async function verifyBase() {
+  console.log("\nBase Sepolia (read-only)");
+  const agent = (await derivePolicyEvmAddress(BASE_PROOF_ACCOUNT)).toLowerCase();
+  ok(agent === BASE_AGENT, `agent address ${agent} is derived from ${getConfig().policyContract} + ${BASE_PROOF_ACCOUNT}/evm-1`);
+  const pc = basePublicClient("base-sepolia");
+  const usdc = EVM_CHAINS["base-sepolia"].usdc.toLowerCase();
+  for (const p of BASE_PROOFS) {
+    const [tx, rcpt] = await Promise.all([pc.getTransaction({ hash: p.hash }), pc.getTransactionReceipt({ hash: p.hash })]);
+    const out = rcpt.logs.find(
+      (l) => l.address.toLowerCase() === usdc && l.topics[0] === TRANSFER_TOPIC && ("0x" + (l.topics[1] ?? "").slice(26)).toLowerCase() === agent,
+    );
+    const amount = out ? BigInt(out.data) : 0n;
+    ok(rcpt.status === "success" && !!out, `${p.what}: succeeded, USDC left the agent (${formatUsdc(amount)} USDC)`);
+    ok(tx.from.toLowerCase() !== agent, `${p.what}: submitted by ${tx.from}, not the agent (the agent paid no gas)`);
+  }
+  const sent = await pc.getTransactionCount({ address: agent as `0x${string}` });
+  ok(sent === 0, `the agent address has never sent a transaction itself (nonce ${sent}): every move was a signed authorization`);
+}
 
 const ok = (cond: boolean, msg: string) => {
   console.log(cond ? "PASS" : "FAIL", msg);
@@ -129,6 +162,14 @@ async function main() {
   } else {
     console.log("NOTE no gitignored key was found; skipped the live send (this is expected on a fresh clone).");
   }
+
+  // A send under spending limits: signed through the policy contract by the contract-derived address.
+  const POLICY_SOL_TX = "2x4tT2BSRLU3pcBerzDcyQGR224S19imdu2xEw2qcDBRDr4vNT1LUCZgXisXkiqwhU4xibNY3YpeZiCGYCQKVJj4";
+  const policySol = await derivePolicySolanaAddress(BASE_PROOF_ACCOUNT);
+  const pv = await inspectTx(POLICY_SOL_TX);
+  ok(!!pv && !pv.err && pv.signers[0] === policySol, `send under limits succeeded, signed by ${policySol} (${getConfig().policyContract} + ${BASE_PROOF_ACCOUNT}/solana-1)`);
+
+  await verifyBase();
 
   if (process.exitCode) {
     console.log("VERIFY FAILED");

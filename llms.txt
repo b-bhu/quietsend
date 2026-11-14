@@ -50,7 +50,7 @@ npx tsx web/scripts/verify-lib.ts
 
 ## MCP server (agents)
 
-Local stdio server. Tools: `get_address_and_balance`, `quote_send`, `send` (chain `solana-devnet` or `base-sepolia`; mode `normal` or `hide_recipient`; signer backend `human` or `policy`), `fetch_paid` (HTTP 402), `get_receipt`. Set `NEAR_ACCOUNT` to your account; there is no default. One-time setup: `NEAR_ACCOUNT=you.testnet npm run setup-agent`. Full guide: docs/INTEGRATING.md. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
+Local stdio server. Tools: `get_address_and_balance`, `quote_send`, `send` (chain `solana-devnet` or `base-sepolia`; mode `normal` or `hide_recipient`; signer backend `policy` by default; `human` only if the server runs with `QUIETSEND_ALLOW_HUMAN=1`), `fetch_paid` (HTTP 402), `get_receipt`. Set `NEAR_ACCOUNT` to your account; there is no default. One-time setup: `NEAR_ACCOUNT=you.testnet npm run setup-agent`. Full guide: docs/INTEGRATING.md. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
 
 ```bash
 npx tsx mcp/server.ts
@@ -83,7 +83,7 @@ Proven on Base Sepolia (14 Nov 2026):
 - Agent send, 0.01 USDC, gasless (relayer paid gas): https://sepolia.basescan.org/tx/0x9f97ba15033da937bf1d345a401f5f310a27ac28c1aaa2651a1b1698ce25bd75
 - Same send through the MCP `send` tool: https://sepolia.basescan.org/tx/0x98e23fcabbe41b4de392c1df1c5b960fb1e138952d030a8fda0724158cda89aa
 - HTTP 402 payment through the MCP `fetch_paid` tool (the paid server settled it): https://sepolia.basescan.org/tx/0x39cf7150062d714d12a51421f67e592c544b41a56f360179440285bfa7ddfb53
-- Over the per-transfer limit (2 USDC): `needs_approval`, intent 1, nothing signed. Over the hard cap (6 USDC): refused.
+- A 2 USDC send, over the 1 USDC per-transfer limit: `needs_approval` (intent 1), nothing signed. A 6 USDC send, over the 5 USDC hard cap: refused.
 
 ## Proven devnet transactions
 

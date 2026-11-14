@@ -1,249 +1,149 @@
 # quietsend
 
-**NEAR Chain Signatures will sign any bytes you hand them. quietsend inspects and simulates the Solana transaction first, then asks a NEAR account to sign.**
-
-Send Solana devnet USDC with only a NEAR account — no Solana private key exists anywhere. The sending is the test harness. The contribution is the guard that sits between an untrusted transaction builder and an MPC network that signs without asking questions.
+**Send USDC on Solana and Base from a NEAR account. No Solana or Ethereum private key exists anywhere: NEAR Chain Signatures sign each payment.**
 
 **Status: NEAR testnet, Solana devnet and Base Sepolia only.** Nothing here touches mainnet. Test USDC has no value.
+
+## What it does
+
+- **Send USDC on Solana, optionally hiding who you paid.** The hide-recipient mode routes the payment through MagicBlock, so no single transaction links you to the recipient.
+- **Spending limits that hold.** Give an agent a key that can only ask a NEAR contract for a signature. The contract enforces a per-send limit, a daily limit and a hard cap that you set, on Solana and Base together. Anything over the limit waits for your approval. The agent's key cannot change the limits or approve its own sends.
+- **Gasless on Base.** The paying address holds USDC only. A relayer pays the gas and cannot change the amount or the recipient.
+- **Pay for APIs.** An agent can pay an HTTP 402 endpoint (x402 `exact`, USDC on Base Sepolia) within the same limits.
+
+## Try it
 
 ```bash
 npm install && npm test
 ```
 
-55 tests (plus 25 in the Rust contract), no network, no wallet, about a second. Most of them are hostile transactions the guard refuses, each for a named reason.
-
----
-
-## Why the guard is the point
-
-Deriving an address, building a transaction, signing it with Chain Signatures and broadcasting it is NEAR's documented quickstart; `chainsig.js` is in this repo's dependencies and does most of it. That part is not hard.
-
-The hard part is that **the MPC signs whatever message it is given.** In hide-recipient mode the Solana transaction is built by MagicBlock's API — a third party. If that API returns a transaction that delegates your token account, reassigns its owner, closes it, or moves ten times the amount you asked for, a naive client hands those bytes to the MPC and the MPC signs them. There is no "are you sure" step in an MPC network.
-
-So `shared/magicblock-guards.ts` (253 lines) treats the transaction builder as hostile:
-
-- **exactly one required signer,** and it must be the user's own derived address
-- **every program on an allowlist** — and anything hidden behind an address lookup table is refused, because a lookup table cannot be resolved without extra fetches
-- **SPL token instructions restricted to `Transfer` (3) and `TransferChecked` (12).** `Approve`, `SetAuthority`, `CloseAccount` and `Burn` are refused outright
-- **the source must be the user's own USDC associated token account,** and `TransferChecked`'s mint must be USDC
-- **simulation before signing:** the transaction is simulated and the user's own accounts are checked — USDC spent is at least the amount and at most amount + reported fee + 0.2%; owner unchanged; no delegate; no close authority; at most 0.01 SOL spent
-
-All of it fails closed, and all of it runs **before** a signature exists.
-
----
-
-## Every claim, with a command that proves it
-
-No wallet or credentials needed for the first three.
-
-| Claim | Command | What you should see |
-|---|---|---|
-| The guard refuses 12 classes of hostile transaction, by name | `npm test` | 44 tests pass, under a second, no network |
-| You can watch it refuse them in a browser | `cd web && npm run dev`, then open `#/demo` | 12 attack cards, and a toggle showing what happens without the guard |
-| The tests actually bite (not vacuous) | see [Proving the tests aren't vacuous](#proving-the-tests-arent-vacuous) | breaking the guard fails tests |
-| Scripts and guard typecheck | `npm run typecheck` | exits 0, no output |
-| The web app builds | `cd web && npm install && npx tsc -b` | exits 0 |
-| The privacy claims hold on chain | `npm run verify` | 20 PASS: leg 1 has no recipient, leg 2 has no sender, both verified against devnet |
-| Derivation is real, and cross-checked two independent ways | `npx tsx web/scripts/verify-lib.ts` | 16 PASS, 0 FAIL, exit 0 (needs network) |
-| An agent can send under policy | `npm run mcp`, or `npx tsx scripts/p-01-policy-e2e.ts` | function-call key send, `needs_approval`, approve, fresh send |
-| The guard refuses a real overcharge from the live MagicBlock API | same command, line "economic check rejects…" | refusal printed with the base-unit amounts |
-| A payout is accepted only on exact amount **and** MagicBlock's signer/vault | same command, lines "pollLeg2…" | wrong amounts ignored, real payout found |
-
-`verify-lib.ts` is the honest one to read. It imports the *same* `web/src/lib` modules the browser runs, derives the address through the signer's view call **and** independently via `chainsig.js` local math, asserts the two agree, then hits the live MagicBlock API and devnet RPC. Read-only; it needs no keys. With `--send normal` or `--send hide` it performs a real devnet send using a NEAR key in the gitignored `.keys/`.
-
-### Proving the tests aren't vacuous
-
-A passing suite proves nothing if it would also pass against a broken guard. Break it on purpose:
+55 tests, plus 25 in the Rust contract. No network, no wallet, about a second.
 
 ```bash
-sed -i '' 's/const TOKEN_IX_OK = new Set(\[3, 12\]);/const TOKEN_IX_OK = new Set([3, 12, 4, 6, 8, 9]);/' shared/magicblock-guards.ts && npm test; git checkout shared/magicblock-guards.ts
+npm run verify
 ```
 
-Five tests fail — Approve, SetAuthority, CloseAccount, Burn and the Token-2022 case — then the guard is restored. Three other mutations were checked the same way during development (short-circuiting the program allowlist, disabling the source-account check, disabling the payout validator/vault check); each failed exactly one test.
-
----
-
-## What the tests cover
-
-`test/guard-attacks.test.ts`, all offline:
-
-| Attack | Guard check |
-|---|---|
-| API claims `sendTo` other than `base` | string compare |
-| Transaction needs a second signature | `numRequiredSignatures !== 1` |
-| Sole signer is not the sender | `keys[0] !== from` |
-| Calls a program not on the allowlist | 8-program allowlist |
-| `Approve` — delegates your token account | tag not in `{3, 12}` |
-| `SetAuthority` — hands over your account | tag not in `{3, 12}` |
-| `CloseAccount` — sweeps the account | tag not in `{3, 12}` |
-| `Burn` — destroys the tokens | tag not in `{3, 12}` |
-| Same attack via Token-2022 instead | both programs checked |
-| SPL instruction with no data to inspect | empty-data refusal |
-| Source is not the sender's USDC ATA | compared to derived ATA |
-| `TransferChecked` on a non-USDC mint | mint compared to USDC |
-
-Plus five on `matchMagicBlockPayout`: a failed transaction, a wrong amount, a payout to the wrong recipient, and — the sharp one — an **exact-amount payout from an unrelated payer**, which is refused because it is neither signed by MagicBlock's validator nor touches its vault.
-
-### See it in a browser
+Read-only and needs no keys. It checks the published Solana and Base transactions below against the live chains.
 
 ```bash
 cd web && npm install && npm run dev
 ```
 
-Open **`#/demo`**. Twelve hostile transactions, each run through the real guard in the page — nothing signed, broadcast or sent. Flip **Guard off** and every card turns red: that is what a client without the guard hands to the MPC.
-
-The page and the test suite both import `shared/attack-cases.ts`, so the demo cannot claim a refusal the tests do not prove. `test/shared-cases.test.ts` asserts each case is refused *for the stated reason*, which is what keeps the two in step.
-
-**Not yet covered offline.** Five checks in `checkEconomics` need a live `simulateTransaction`: overcharge past amount + fee + 0.2%, owner changed, delegate set, close authority set, and SOL drain past 0.01. They are exercised live by `verify-lib.ts` (the overcharge case prints its refusal) but have no offline fixture yet. Named at the foot of the test file with line numbers.
-
----
+The app opens at `localhost:5173`: send at `#/send`, the developer guide at `#/docs`, the guard demo at `#/demo`. To connect an agent, start with the **[developer guide](docs/INTEGRATING.md)**. Agents can also read [llms.txt](llms.txt).
 
 ## How it works
 
-1. **Derive.** A Solana address comes from your NEAR account plus a path label (`solana-1`), via `derived_public_key` on `v1.signer-prod.testnet`, domain 1 (Ed25519). Same account + path always gives the same address. `bibhu-usdc.testnet` + `solana-1` → `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`. Anyone knowing the account and path can recompute it — the public NEAR sign call reveals both, so this link is **not** secret.
-2. **Build.** An unsigned Solana transaction: either a normal SPL `transferChecked`, or a MagicBlock private transfer built by their API.
-3. **Guard.** The checks above. Refuse rather than sign anything unexpected.
-4. **Sign.** The NEAR account calls `sign` on the signer contract with `payload_v2: {Eddsa: <message hex>}`, 1 yoctoNEAR deposit, 300 Tgas. At least 11 of 16 MPC nodes produce an Ed25519 signature, verified locally against the derived address before use.
-5. **Broadcast.** Sent to Solana devnet.
+1. **Derive.** NEAR's MPC signer (`v1.signer-prod.testnet`) derives a key from *(who is asking, a path label)*. That gives a fixed address on another chain: Ed25519 for Solana, secp256k1 for Base. The same inputs always give the same address, so there is nothing to store.
+2. **Check.** Before anything is signed, the bytes are checked. A payment built by MagicBlock goes through the guard (below). A payment with spending limits goes through the policy contract, which parses the Solana transaction, or builds the Base authorization itself, and checks the limits.
+3. **Sign.** At least 11 of 16 MPC nodes produce the signature. It is checked locally against the derived address before use.
+4. **Send.** The transaction is broadcast to Solana. On Base, a relayer submits the signed authorization.
 
-No Solana private key is ever created. The key material exists only as MPC shares. A NEAR key *authorizes* the request: in the scripts from a gitignored `.keys/`, in the web app from the user's NEAR wallet.
+Example: `bibhu-usdc.testnet` + `solana-1` → `7snfiiW6ZP2pgACBx3ZtKKcpNwTk74gGGQPRtxDVnt27`. Anyone who knows the account and path can recompute this, because both appear in the public NEAR sign call.
 
-The token is Circle devnet USDC (`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`), 6 decimals — 1 USDC = `1_000_000` base units.
+## Hiding who you paid
 
----
+The payment takes two transactions. In the first, you pay MagicBlock's vault and the recipient does not appear. About a second later the vault pays the recipient, and you do not appear. MagicBlock charges 0.1%.
 
-## Modes
-
-**Normal.** One transaction, sender → recipient. An ordinary SPL transfer that happens to be MPC-signed.
-
-**Hide recipient (MagicBlock private payments).** Two legs: the sender deposits to MagicBlock's vault (the recipient is not in this transaction), then ~1 s later the vault pays the recipient (the sender is not in this transaction). In the proven run MagicBlock charged 0.001 USDC: the sender paid 1.001, the recipient received 1.000.
-
-MagicBlock's delay/split options could blur amount-and-timing matching but were **not tested**; the proven runs used 0 ms delay.
-
----
-
-## What is public and what is not
-
-Read this before assuming anything. quietsend is **not** private or anonymous in any unqualified sense.
-
-| | Normal mode | Hide-recipient mode |
+| | Normal | Hide recipient |
 |---|---|---|
-| Sender | Public | Public on leg 1 (sender → vault). Not present on leg 2. |
-| Recipient | Public | Public on leg 2 (vault → recipient). Not present on leg 1. |
-| Direct sender↔recipient link | Public (one transaction) | **Not on-chain in either transaction.** An observer can still guess it from amount and timing. |
-| Amount | Public | **Visible** on both legs, and with timing is matchable across them. |
-| Token | Public | Visible. |
-| NEAR sign call | Public | Public. The NEAR account + path in the sign request links to the derived Solana address. True in both modes — it is how Chain Signatures work. |
-| Trust | NEAR MPC (no Solana key stored) | Unlinking depends on **Intel TDX plus MagicBlock**, not a math-only proof. If you do not trust TEEs or MagicBlock, assume no unlinking. |
+| Sender | Public | Public in the first transaction. Absent from the second. |
+| Recipient | Public | Public in the second transaction. Absent from the first. |
+| Sender ↔ recipient link | Public | **Not in either transaction.** It can still be guessed from amount and timing. |
+| Amount | Public | Public in both, so it can be matched across them |
+| NEAR sign call | Public | Public. It links the NEAR account to the derived address. |
+| Trust | NEAR MPC | Unlinking also depends on Intel TDX and MagicBlock. There is no math-only proof. |
 
-A random derivation path would not help: the path is in the public NEAR call, and derivation is public math.
+A random derivation path would not help, because the path is in the public NEAR call.
 
----
+## Spending limits
 
-## The guard is not a security boundary
+The policy contract is `policy.quietsend.testnet` ([contract/src/lib.rs](contract/src/lib.rs)). Each NEAR account sets its own policy:
 
-Stated plainly, because it matters more than the feature list.
+| Setting | Effect |
+|---|---|
+| `per_transfer` | Above this, the send waits for approval |
+| `daily` | Above this per UTC day, counted across Solana and Base, the send waits |
+| `cap` | Above this, the send is refused, even with approval |
+| `allowlist` | If set, only these recipients pass without approval |
 
-The guard runs **in the page that requests the signature.** A compromised frontend, a malicious npm dependency, or any other dapp the user approves goes straight around it. What this is: **fail-closed input validation against an untrusted transaction builder.** Rare, valuable, correctly scoped — not a firewall, and not a policy engine.
+**Why the limits hold.** NEAR's signer charges 1 yoctoNEAR per signature, and a NEAR function-call key cannot attach a deposit. So the agent's key cannot call the signer directly. Its only route is the contract. Changing the policy and approving a held send also need a deposit, so only the account's full-access key can do them.
 
-The architectural fix, and the sharpest point in this design:
+**What the contract signs.** On Solana it parses the transaction and requires exactly one USDC transfer, of the stated amount, to the stated recipient. On Base it signs no transaction at all. It builds an [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) `transferWithAuthorization` digest for the Base Sepolia USDC contract and signs only that, so the signature can only mean "exactly this amount, to this address, within the hour". The client rebuilds the digest independently and refuses to relay unless it recovers to the derived address. A Rust test and a TypeScript test assert the same digest.
 
-> A NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR (`SIGN_DEPOSIT_YOCTO`, `web/src/lib/config.ts:17`). So an agent holding a function-call key **cannot reach the signer at all.** Route it through a contract that performs these checks on-chain and the architecture *enforces* the boundary instead of asking politely.
+Setup for any NEAR testnet account takes one command: `NEAR_ACCOUNT=you.testnet npm run setup-agent`. See the [developer guide](docs/INTEGRATING.md).
 
-**This is built.** `contract/src/lib.rs` is deployed at `policy.quietsend.testnet`, and `mcp/server.ts` is the agent-facing front door (`npm run mcp`). The contract enforces a per-transfer limit and a daily limit, holds anything over them as an intent until `approve_intent`, and binds the payload it signs. End-to-end proof: `scripts/p-01-policy-e2e.ts`.
+## Proof
 
-Addresses differ between the two paths: policy mode derives from predecessor `policy.quietsend.testnet` with path `<user>/solana-1`, not from the user's own account. See [llms.txt](llms.txt). (The first contract, `policy.bibhu-usdc.testnet`, is still live so older links keep working; it has no EVM support.)
+Everything below is checked by `npm run verify`.
 
-### Base Sepolia, gasless, under the same limits
+**Solana devnet**
 
-The same contract signs USDC on **Base Sepolia** (`sign_evm_for_caller`). It never parses an Ethereum transaction: it builds an [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) `transferWithAuthorization` digest itself, for the known USDC contract, and asks the MPC to sign only that (secp256k1, path `<user>/evm-1`). The signature can mean one thing: *exactly this amount, to this address, on this chain, valid for at most an hour.* A relayer submits it and pays the gas, so **the agent's EVM address holds USDC and never needs ETH**. The relayer cannot change the amount or recipient without breaking the signature; the worst it can do is not submit.
+| What | Transaction |
+|---|---|
+| Normal transfer, 1 USDC | [`3hUZ5hSA…uKgt`](https://explorer.solana.com/tx/3hUZ5hSAwM8XBsxkM1nGVwE2G6UxdwBjS8qaD1wmj3L7WUo9z8bGsZdzVCCZKfi3RpnKQica5tCb16snroE4uKgt?cluster=devnet) |
+| Hide recipient, you → vault | [`2w2LRuLn…fxKq7`](https://explorer.solana.com/tx/2w2LRuLninNbG2MbWeCAczuJUaEW9yAxMhVR2GD1JmXEfWdBjvQYDETY6mPMX3uF1WqHPZnUB3CixhvfSLGfxKq7?cluster=devnet) |
+| Hide recipient, vault → recipient | [`5cTHDqYs…8dsUk`](https://explorer.solana.com/tx/5cTHDqYssFJx2cfUuXe3LYEpz5f2Q3MfVNuFuqp9Qrw4PJ3WhzqYG1h6ZAD9aEG9HxJpZNAHe3jSJCxN7v88dsUk?cluster=devnet) |
+| Send under limits, through the contract | [`2x4tT2BS…QKVJj4`](https://explorer.solana.com/tx/2x4tT2BSRLU3pcBerzDcyQGR224S19imdu2xEw2qcDBRDr4vNT1LUCZgXisXkiqwhU4xibNY3YpeZiCGYCQKVJj4?cluster=devnet) |
 
-- **One USDC budget across chains.** `per_transfer`, `daily` and `cap` count Solana and Base sends together.
-- **Checked twice.** The client rebuilds the digest independently (viem) and refuses unless the signature recovers to the agent's derived address; a Rust test and a TypeScript test assert the same digest for the same inputs.
-- **HTTP 402.** The MCP tool `fetch_paid` pays an [x402](https://x402.org) `exact` offer: the agent signs through the contract (limits apply, over-limit returns `needs_approval`), the paid server settles and pays gas. Try it: `npx tsx scripts/x402-demo-server.ts` then `npx tsx scripts/x402-01-fetch.ts`.
-- **Hide-recipient is Solana-only.** On Base a send is a normal public USDC transfer.
+**Base Sepolia.** The paying address `0x906f0d04f6b07644a8acfe76a167ae7a859af817` has never sent a transaction itself.
 
-Proof on Base Sepolia (14 Nov 2026), agent `0x906f0d04f6b07644a8acfe76a167ae7a859af817`:
+| What | Transaction |
+|---|---|
+| Send under limits, 0.01 USDC, gas paid by the relayer | [`0x9f97ba15…bd75`](https://sepolia.basescan.org/tx/0x9f97ba15033da937bf1d345a401f5f310a27ac28c1aaa2651a1b1698ce25bd75) |
+| The same, through the MCP `send` tool | [`0x98e23fca…89aa`](https://sepolia.basescan.org/tx/0x98e23fcabbe41b4de392c1df1c5b960fb1e138952d030a8fda0724158cda89aa) |
+| HTTP 402 payment through `fetch_paid`, settled by the paid server | [`0x39cf7150…fb53`](https://sepolia.basescan.org/tx/0x39cf7150062d714d12a51421f67e592c544b41a56f360179440285bfa7ddfb53) |
 
-- Agent send, 0.01 USDC, gasless (relayer paid gas): https://sepolia.basescan.org/tx/0x9f97ba15033da937bf1d345a401f5f310a27ac28c1aaa2651a1b1698ce25bd75
-- Same send through the MCP `send` tool: https://sepolia.basescan.org/tx/0x98e23fcabbe41b4de392c1df1c5b960fb1e138952d030a8fda0724158cda89aa
-- HTTP 402 payment through the MCP `fetch_paid` tool (the paid server settled it): https://sepolia.basescan.org/tx/0x39cf7150062d714d12a51421f67e592c544b41a56f360179440285bfa7ddfb53
-- Over the per-transfer limit (2 USDC): `needs_approval`, intent 1, nothing signed. Over the hard cap (6 USDC): refused.
+A 2 USDC send, over the 1 USDC per-transfer limit, returned `needs_approval` and nothing was signed. A 6 USDC send, over the 5 USDC cap, was refused.
 
-**Full threat model, including what the guard does not protect against: [docs/SECURITY.md](docs/SECURITY.md).**
+## The guard
 
----
+NEAR's MPC signs whatever bytes it is given. In hide-recipient mode those bytes come from MagicBlock's API, a third party. [core/guards.ts](core/guards.ts) treats that builder as hostile and refuses before any signature exists unless:
 
-## Calling it from an agent or a Node process
+- the transaction has **exactly one required signer**, and it is your derived address
+- **every program is on an allowlist.** Address lookup tables are refused.
+- **SPL token instructions are only `Transfer` or `TransferChecked`.** `Approve`, `SetAuthority`, `CloseAccount` and `Burn` are refused, on both token programs.
+- the source is **your own USDC account** and the mint is USDC
+- **a simulation** shows USDC spent between the amount and amount + fee + 0.2%, the owner unchanged, no delegate or close authority, and at most 0.01 SOL spent
 
-**[Developer guide](docs/INTEGRATING.md)**: set up an agent for your own NEAR account (`NEAR_ACCOUNT=you.testnet npm run setup-agent`), connect it to Claude Code, Claude Desktop, Cursor or VS Code, and call it from Node. `web/scripts/verify-lib.ts` is a reference caller for direct human-mode sends.
+The tests in `test/guard-attacks.test.ts` refuse 12 hostile transactions, each for a named reason. `#/demo` runs the same cases (`shared/attack-cases.ts`) in the browser, with a toggle that shows what would be signed without the guard. Five more tests cover the payout matcher. An exact-amount payout from an unrelated payer is refused, because MagicBlock neither signed it nor did it touch MagicBlock's vault.
 
-The thing to read first: a NEAR **function-call access key cannot attach a deposit**, and `sign` requires 1 yoctoNEAR — so an agent's restricted key cannot reach the signer directly. The policy contract turns that into the design: the agent's key only reaches the contract, and the contract decides whether to sign, applying a per-transfer limit, a daily limit, and human approval for anything above them.
+To confirm the tests would catch a broken guard, break it on purpose:
 
-When the app is running, the guide is at `#/docs` and `/llms.txt` is the plain-text entry point for agents.
+```bash
+sed -i '' 's/const TOKEN_IX_OK = new Set(\[3, 12\]);/const TOKEN_IX_OK = new Set([3, 12, 4, 6, 8, 9]);/' core/guards.ts && npm test; git checkout core/guards.ts
+```
 
----
+Ten tests fail (the attack tests and the demo's shared cases both catch it), then the guard is restored.
+
+The guard runs in the same process that asks for the signature, so it protects against a hostile *transaction builder*, not a hostile frontend or dependency. Spending limits do not rely on it: they live in the contract. [SECURITY.md](docs/SECURITY.md) has the full threat model.
+
+## Limitations
+
+- **Testnet only and unaudited.** Nothing here is a claim about mainnet.
+- **Not anonymous.** The derived address follows from the NEAR account and path, both public. In hide-recipient mode, amount and timing still allow correlation. MagicBlock's delay and split options were not tested.
+- **Hide recipient needs trust** in Intel TDX and MagicBlock.
+- **Hide recipient is not available under spending limits** by default. The contract cannot read MagicBlock's transaction, so it cannot bind the amount. An owner can opt in with `allow_hide_unverified`, and then the amount is not checked.
+- **402 payments use the x402 v1 format,** on Base Sepolia only.
+- **The relayer holds a hot key** with gas money in it, never user funds.
+- **The contract can be upgraded** by whoever holds `policy.quietsend.testnet`'s key. Removing that key would make it permanent.
+- **Blockhash expiry (60–90 s).** If signing is slow, the send is refused rather than re-signed, and the NEAR call is already spent.
+- **Five simulation checks have no offline test.** They run only against live devnet.
 
 ## Layout
 
 ```
-shared/magicblock-guards.ts   the guard: 253 lines, used by both the app and the scripts
-shared/attack-cases.ts        the hostile transactions, shared by the tests and the demo
-test/guard-attacks.test.ts    offline attack tests  ·  npm test
-web/src/components/Demo.tsx   the #/demo page: the same cases, in the browser
-web/                          Vite + React + TypeScript app, no backend
-  src/lib/                    derive, build, guard, sign, broadcast, poll, inspect
-  scripts/verify-lib.ts       headless verification of src/lib against live devnet
-scripts/                      step-by-step Node scripts (00-create-account … 06-fund-user)
-docs/INTEGRATING.md           developer guide: setup, connect, tools, limits (rendered at #/docs)
-docs/SECURITY.md              threat model: what the guard does and does not protect
-web/public/llms.txt           agent-facing entry point, served at /llms.txt
-docs/next-version.md          merged technical review: where this goes next
-PLAN.md                       scope, risks, build status
+contract/            NEAR policy contract (Rust): limits, approvals, Solana parsing, Base digests
+core/                the library: derive, sign, guard, send (Solana), evm.ts (Base), x402.ts (HTTP 402)
+mcp/                 MCP server: get_address_and_balance, quote_send, send, fetch_paid, get_receipt
+web/                 Vite + React app: send, receipts, #/docs, #/demo
+scripts/             setup-agent, verify, the 402 demo server, step-by-step scripts
+test/                offline tests: guard attacks, Base digest parity, 402 verification
+docs/INTEGRATING.md  developer guide (rendered at #/docs)
+docs/SECURITY.md     threat model
+llms.txt             entry point for agents (served at /llms.txt)
+video/               the ad (Remotion overlays)
 ```
 
-Run the app:
+For the web app, use the NEAR testnet wallets Meteor, Intear or Nightly. Set `VITE_SOLANA_RPC` to a keyed devnet endpoint; the public one rate-limits.
 
-```bash
-cd web && npm install && npm run dev
-```
-
-Wallets on NEAR testnet: Meteor, Intear or Nightly (NEAR Wallet Selector is deprecated; this uses NEAR Connect). HOT Wallet and MyNearWallet do not advertise testnet support and are not offered.
-
-Set `VITE_SOLANA_RPC` to a keyed devnet endpoint. `api.devnet.solana.com` is unreachable from some networks and the public fallback rate-limits.
-
----
-
-## Proven devnet transactions
-
-| What | Signature |
-|---|---|
-| Normal transfer, 1 USDC | [`3hUZ5hSA…uKgt`](https://explorer.solana.com/tx/3hUZ5hSAwM8XBsxkM1nGVwE2G6UxdwBjS8qaD1wmj3L7WUo9z8bGsZdzVCCZKfi3RpnKQica5tCb16snroE4uKgt?cluster=devnet) |
-| Hide, leg 1 — deposit to vault | [`2w2LRuLn…fxKq7`](https://explorer.solana.com/tx/2w2LRuLninNbG2MbWeCAczuJUaEW9yAxMhVR2GD1JmXEfWdBjvQYDETY6mPMX3uF1WqHPZnUB3CixhvfSLGfxKq7?cluster=devnet) |
-| Hide, leg 2 — vault pays recipient | [`5cTHDqYs…8dsUk`](https://explorer.solana.com/tx/5cTHDqYssFJx2cfUuXe3LYEpz5f2Q3MfVNuFuqp9Qrw4PJ3WhzqYG1h6ZAD9aEG9HxJpZNAHe3jSJCxN7v88dsUk?cluster=devnet) |
-| Hide, leg 1 — second run, 0.1 USDC | [`4pgywdpf…M57mw`](https://explorer.solana.com/tx/4pgywdpfMCFq78K4NChbJNMfh3QGNnzmF1fFHDhhSzari8r2pcADLHF7M6jpXsRb7vXzj6awBcKuXLDkR6LM57mw?cluster=devnet) |
-| Hide, leg 2 — second run, 0.1 USDC | [`S4LR9EjX…48FCq`](https://explorer.solana.com/tx/S4LR9EjXeDpD8NyiDUVmeT8qSWtpGFKRcHaHhh8xBrWsFKQPhXgYp3fC3ozLnnkcm97pMLNVjsFX7rYYcU48FCq?cluster=devnet) |
-
-The second run: 0.0001 USDC fee, legs 1 second apart. `verify-lib.ts` reads that real leg 2 back off the chain and checks the payout matcher accepts it — and that look-alikes with wrong amounts are ignored.
-
----
-
-## Limitations
-
-- **Not mainnet,** and nothing here is a claim about mainnet behaviour.
-- **Not anonymous.** The derived address is a deterministic function of the NEAR account and path, both public in the sign call. In hide mode, amount and timing still allow correlation.
-- **Not trustless.** Hide mode relies on Intel TDX and MagicBlock. No math-only proof of unlinking; no attestation verification; no independent audit of this project.
-- **The guard is browser-side,** so it is input validation, not a boundary. See above.
-- **Blockhash expiry (~60–90 s).** If the wallet or MPC is slow, the app refuses to broadcast and asks you to send again — the NEAR call is already spent. No silent rebuild-and-resign, which would need a second approval.
-- **Five economic checks have no offline test** yet; they run only against live devnet.
-- **MagicBlock delay/split untested,** so amount-and-timing matching is easy in the proven runs.
-- **No separate recovery path.** If your NEAR account cannot authorize a sign request, the derived address cannot be used. That is the trade.
-- **No MagicBlock auth token** is used or stored; their transfer endpoint needs none.
-
-## Roadmap
-
-Nothing below is built. See [docs/next-version.md](docs/next-version.md) for the reasoning.
-
-- **On-chain guard in a NEAR contract** — the architectural fix described above.
-- **Offline fixtures for the five simulation checks.**
-- **Helius Privacy Rings** was evaluated and ruled out for now: its default ring encrypts *amounts* while leaving wallets visible — the opposite half from what this hides — and counterparty hiding needs Custom Rings, still in audit with a Q4 2026 mainnet target.
+The token on Solana is Circle devnet USDC (`4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`). On Base it is Circle's Base Sepolia USDC (`0x036CbD53842c5426634e7929541eC2318f3dCF7e`). Both have 6 decimals.

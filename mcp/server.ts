@@ -71,7 +71,7 @@ function createServer(): McpServer {
         "Derive the agent's address for a NEAR testnet account and read its balances. chain=solana-devnet (default): mode=human uses (account, solana-1); mode=policy uses (policy contract, account/solana-1). chain=base-sepolia: the policy address (policy contract, account/evm-1). Testnet only. Never returns keys.",
       inputSchema: z.object({
         near_account: z.string().optional().describe("NEAR testnet account. Defaults to the configured account."),
-        mode: SignerBackend.optional().describe("human (default) or policy (agent address)."),
+        mode: SignerBackend.optional().describe("policy (default, the agent's address) or human (the account's own address)."),
         chain: Chain.optional().describe("solana-devnet (default) or base-sepolia (policy/agent address only)."),
       }),
     },
@@ -93,7 +93,7 @@ function createServer(): McpServer {
             explorer: EVM_CHAINS["base-sepolia"].explorerAddr(address),
           });
         }
-        const backend = mode ?? "human";
+        const backend = mode ?? "policy";
         const solanaAddress = await addressFor(nearAccount, backend);
         const bal = await getBalances(solanaAddress);
         return textResult({
@@ -120,7 +120,7 @@ function createServer(): McpServer {
         recipient: z.string().describe("Recipient Solana address."),
         amount_usdc: z.string().describe('Amount in USDC, for example "0.1".'),
         mode: SendMode.describe("normal or hide_recipient."),
-        signer_backend: SignerBackend.optional().describe("human (default) or policy."),
+        signer_backend: SignerBackend.optional().describe("policy (default) or human."),
         near_account: z.string().optional(),
       }),
     },
@@ -129,7 +129,7 @@ function createServer(): McpServer {
         const amountBase = parseUsdc(amount_usdc);
         const feeBase = mode === "hide_recipient" ? amountBase / 1000n + 1n : 0n;
         const totalDebit = mode === "hide_recipient" ? hideRecipientDebit(amountBase) : amountBase;
-        const backend = signer_backend ?? "human";
+        const backend = signer_backend ?? "policy";
         const nearAccount = resolveAccount(near_account);
         let warning: string | undefined;
         try {
@@ -196,18 +196,23 @@ function createServer(): McpServer {
     {
       title: "Send USDC",
       description:
-        "Send USDC from the derived address. chain=solana-devnet (default): mode=normal is a public SPL transfer; mode=hide_recipient uses MagicBlock (two legs) with pre-sign guards. signer_backend=human calls v1.signer-prod.testnet with the account key; policy calls the policy contract's sign_for_caller. chain=base-sepolia: always the policy contract (sign_evm_for_caller), mode=normal only, gasless for the agent (EIP-3009, a relayer pays gas); the same USDC limits apply across both chains. Testnet only. Never returns keys.",
+        "Send USDC from the derived address. chain=solana-devnet (default): mode=normal is a public SPL transfer; mode=hide_recipient uses MagicBlock (two legs) with pre-sign guards. signer_backend=policy (default) goes through the policy contract's sign_for_caller and its limits; human signs with the account's full-access key and is refused unless the server runs with QUIETSEND_ALLOW_HUMAN=1. chain=base-sepolia: always the policy contract (sign_evm_for_caller), mode=normal only, gasless for the agent (EIP-3009, a relayer pays gas); the same USDC limits apply across both chains. Testnet only. Never returns keys.",
       inputSchema: z.object({
         recipient: z.string().describe("Solana address, or 0x address for base-sepolia."),
         amount_usdc: z.string(),
         mode: SendMode,
-        signer_backend: SignerBackend.optional().describe("human (default) or policy. base-sepolia is always policy."),
+        signer_backend: SignerBackend.optional().describe("policy (default) or human (needs QUIETSEND_ALLOW_HUMAN=1). base-sepolia is always policy."),
         near_account: z.string().optional(),
         chain: Chain.optional().describe("solana-devnet (default) or base-sepolia."),
       }),
     },
     async ({ recipient, amount_usdc, mode, signer_backend, near_account, chain }) => {
-      const backend = signer_backend ?? "human";
+      const backend = signer_backend ?? "policy";
+      if (backend === "human" && process.env.QUIETSEND_ALLOW_HUMAN !== "1") {
+        return errResult(
+          "signer_backend=human signs with the account's full-access key, outside the policy limits, and is off. Use signer_backend=policy, or start the server with QUIETSEND_ALLOW_HUMAN=1.",
+        );
+      }
       let nearAccount: string;
       try {
         nearAccount = resolveAccount(near_account);

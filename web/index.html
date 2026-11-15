@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Kept on Google Fonts on purpose: self-hosted variable woff2 was measured slower on a
+         throttled phone (Send LCP 2.6 s -> 3.0 s), competing with the app chunk for bandwidth. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,6 +13,27 @@
       rel="stylesheet"
     />
     <meta name="theme-color" content="#101216" />
+    <script>
+      // Start the route's largest download with the HTML instead of after the entry script runs.
+      // Landing (#/ or no hash): its poster, the largest paint; URLs match Landing.tsx.
+      // Any other route: the app chunk and its imports (filled in at build by vite.config.ts),
+      // so it doesn't wait for the landing entry to load and ask for it.
+      (function () {
+        function add(attrs) {
+          var l = document.createElement("link");
+          for (var k in attrs) l[k] = attrs[k];
+          document.head.appendChild(l);
+        }
+        if (!location.hash.slice(2)) {
+          add({ rel: "preload", as: "image", media: "(max-width: 760px)", href: "/ad-poster-960.jpg?v3", fetchPriority: "high" });
+          add({ rel: "preload", as: "image", media: "(min-width: 761px)", href: "/ad-poster.jpg?v3", fetchPriority: "high" });
+        } else {
+          ["__APP_CHUNKS__"].forEach(function (href) {
+            if (href.charAt(0) === "/") add({ rel: "modulepreload", href: href, crossOrigin: "" });
+          });
+        }
+      })();
+    </script>
     <title>quietsend — send on Solana from NEAR</title>
   </head>
   <body>

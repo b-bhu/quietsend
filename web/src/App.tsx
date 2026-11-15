@@ -1,3 +1,6 @@
+// First: @solana/web3.js expects a global Buffer before it loads. The app is its own chunk
+// (main.tsx), so the polyfill rides with it rather than with the landing.
+import "./lib/polyfill";
 import { useCallback, useEffect, useState } from "react";
 import { deriveSolanaAddress, getConnector, type SigningWallet } from "./lib/near";
 import { loadPending } from "./lib/history";

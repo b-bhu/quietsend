@@ -20,8 +20,27 @@ const markdownCharset = {
   },
 };
 
+/**
+ * index.html preloads the app chunk on any route but the landing (see the script there).
+ * Its hashed filename and its imports only exist after bundling, so fill them in here.
+ * In dev there is no bundle and the placeholder stays, which the script skips.
+ */
+const appChunkPreload = {
+  name: "app-chunk-preload",
+  transformIndexHtml: {
+    order: "post" as const,
+    handler(html: string, ctx: { bundle?: Record<string, { type: string; name?: string; isDynamicEntry?: boolean; fileName: string; imports?: string[] }> }) {
+      if (!ctx.bundle) return html;
+      const app = Object.values(ctx.bundle).find((c) => c.type === "chunk" && c.isDynamicEntry && c.name === "App");
+      if (!app) throw new Error("app-chunk-preload: no App chunk in the bundle (main.tsx/Root.tsx changed?)");
+      const files = [app.fileName, ...(app.imports ?? [])].map((f) => `"/${f}"`).join(", ");
+      return html.replace('"__APP_CHUNKS__"', files);
+    },
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), markdownCharset],
+  plugins: [react(), markdownCharset, appChunkPreload],
   resolve: {
     alias: {
       "@quietsend/core": resolve(root, "../core/index.ts"),

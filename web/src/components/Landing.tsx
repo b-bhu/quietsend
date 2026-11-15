@@ -10,6 +10,7 @@ const GITHUB_URL = "https://github.com/b-bhu/quietsend";
 
 // Bump when web/public/ad.mp4 or ad-poster.jpg changes, so browsers fetch the new file
 // instead of replaying a cached one from the same URL.
+// The poster preload in index.html repeats these URLs: bump it there too.
 const AD_VERSION = "v3";
 
 // The button follows the ad. Times are seconds into ad.mp4 (42.4 s, loops); each cue
@@ -36,6 +37,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
   // (Vite's dev server answers unknown paths with index.html, so a missing ad.mp4
   // arrives as a 200 of HTML and must not be mistaken for a video.)
   const [adReady, setAdReady] = useState(false);
+  const [posterReady, setPosterReady] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = video.current;
@@ -89,8 +91,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
     setMuted(v.muted);
   };
 
-  // The ad carries the whole pitch in its own captions, so the page is just a header,
-  // the full uncropped 16:9 film, and one Send USDC button on the film's lower edge.
+  // The ad carries the whole pitch in its own captions, so on a desktop the page is just a
+  // header, the full uncropped 16:9 film, and one Send USDC button on the film's lower edge.
+  // On a phone the film can't fill the screen without cropping off its captions, so it sits
+  // under the header, the pitch is written out below it, and the button drops to thumb reach.
   return (
     <main className="landing">
       <section className="hero">
@@ -103,26 +107,49 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
           </nav>
         </header>
 
-        <div className="film">
-          {/* The poster frame always paints; the ad covers it once public/ad.mp4 exists. */}
-          <img className="plate" src={`/ad-poster.jpg?${AD_VERSION}`} alt="" aria-hidden="true" />
-          <video
-            ref={video}
-            className={"plate film-video" + (adReady ? " ready" : "")}
-            src={`/ad.mp4?${AD_VERSION}`}
-            poster={`/ad-poster.jpg?${AD_VERSION}`}
-            autoPlay
-            muted
-            loop
-            playsInline
-            aria-hidden="true"
-          />
-          {adReady ? (
-            <button className="ghost sound" aria-pressed={!muted} onClick={toggleSound}>
-              {muted ? "Sound off" : "Sound on"}
-            </button>
-          ) : null}
-          {/* centred, 10% up from the bottom of the film */}
+        <div className="stage">
+          <div className="film">
+            {/* The poster frame paints first (preloaded from index.html); the ad covers it once
+                it decodes. The film itself only starts downloading after the poster has
+                landed, so on a slow phone the 23 MB file doesn't starve the first paint. */}
+            {/* Phones get the 960 px frame at any pixel density (it is only on screen until
+                the film starts); keep these URLs in step with the preload in index.html. */}
+            <picture>
+              <source media="(max-width: 760px)" srcSet={`/ad-poster-960.jpg?${AD_VERSION}`} />
+              <img
+                className="plate"
+                src={`/ad-poster.jpg?${AD_VERSION}`}
+                fetchPriority="high"
+                onLoad={() => setPosterReady(true)}
+                onError={() => setPosterReady(true)}
+                alt=""
+                aria-hidden="true"
+              />
+            </picture>
+            <video
+              ref={video}
+              className={"plate film-video" + (adReady ? " ready" : "")}
+              src={posterReady ? `/ad.mp4?${AD_VERSION}` : undefined}
+              autoPlay
+              muted
+              loop
+              playsInline
+              aria-hidden="true"
+            />
+            {adReady ? (
+              <button className="ghost sound" aria-pressed={!muted} onClick={toggleSound}>
+                {muted ? "Sound off" : "Sound on"}
+              </button>
+            ) : null}
+          </div>
+
+          {/* Phone only; on a desktop the film's captions say this and it stays for screen readers. */}
+          <div className="pitch">
+            <h1>Send USDC on Solana from one NEAR account.</h1>
+            <p>No new wallet. Hide who you paid, or let your AI agent send within limits. Try it on testnet.</p>
+          </div>
+
+          {/* Desktop: centred, 10% up from the bottom of the film. Phone: under the pitch. */}
           <button className={"btn film-cta tone-" + current.tone} onClick={onEnter} aria-label="Send USDC">
             <span key={cue} className="cta-label" aria-hidden="true">
               {current.label} <Arrow />

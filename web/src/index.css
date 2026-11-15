@@ -182,8 +182,14 @@ a { color: inherit; }
 .top { width: 100%; display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 var(--gutter); }
 .top-links { display: flex; align-items: center; gap: clamp(16px, 2.4vw, 32px); }
 .top-links .link { font-size: 15px; }
-.film { position: relative; width: var(--film-w); aspect-ratio: 16 / 9; background: #e6dabf;
+/* The stage is the film plus what sits on it: the button, and the written pitch, which only
+   takes room on a phone (on a desktop the film's captions carry it; screen readers still get it). */
+.stage { position: relative; width: var(--film-w); }
+.film { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #e6dabf;
   border-radius: 14px; overflow: hidden; box-shadow: 0 24px 80px rgba(0, 0, 0, .45); }
+.pitch { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pitch h1 { font: 400 clamp(34px, 10vw, 44px)/1.02 var(--serif); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.pitch p { margin: 14px 0 0; color: var(--text-2); font-size: 16px; line-height: 1.5; text-wrap: pretty; }
 .film .plate { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .film .sound { position: absolute; right: 14px; bottom: 14px; z-index: 2; background: rgba(16, 18, 22, .82); border-color: rgba(255, 255, 255, .4); }
 /* centred, its bottom edge 10% of the film's height up from the film's bottom */
@@ -204,10 +210,16 @@ a { color: inherit; }
 }
 
 @media (max-width: 760px) {
-  /* Phone: the film runs edge to edge under the header. */
+  /* Phone: cropping the film to fill the screen would cut off its captions, so it runs edge
+     to edge under the header, the pitch is written out below it, and the button sits at the
+     bottom of the screen, in thumb reach. */
   .hero { --film-w: 100vw; }
-  .film { border-radius: 0; box-shadow: none; margin: auto 0; }
-  .film-cta { height: 40px; min-width: 0; padding: 0 18px; font-size: 14px; }
+  .stage { flex: 1; display: flex; flex-direction: column; }
+  .film { border-radius: 0; box-shadow: none; }
+  .pitch { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal;
+    padding: 32px var(--gutter) 28px; }
+  .film-cta { position: static; translate: none; min-width: 0; width: auto;
+    margin: auto var(--gutter) calc(var(--gutter) + env(safe-area-inset-bottom)); }
   .film .sound { top: 10px; bottom: auto; right: 10px; height: 28px; font-size: 12px; padding: 0 10px; }
 }
 

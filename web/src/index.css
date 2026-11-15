@@ -299,3 +299,127 @@ a { color: inherit; }
 .prose th, .prose td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 .prose th { color: var(--text-3); font-weight: 500; font-size: 13px; }
 .prose hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0; }
+
+/* ---------- docs overview (#/docs): paste-one-line hero, steps, setup, tools ---------- */
+.docs.docs-top { max-width: 1040px; padding-bottom: 0; }
+.dh { --accent: #00ec97; --accent-ink: #001b11; --accent-bg: rgba(0, 236, 151, .1);
+  width: 100%; max-width: 1040px; min-width: 0; margin: 0 auto; padding: 0 0 80px; animation: rise .4s ease both; }
+.dh code { font-family: var(--mono); letter-spacing: 0; }
+.dh-sub code, .dh-after code { font-size: .88em; color: var(--text); background: var(--surface-2); padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+
+.dh-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: clamp(36px, 8vh, 88px) 0 clamp(48px, 9vh, 96px); }
+.dh-badge { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong); font-size: 12px; color: var(--text-2); }
+.dh-badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.dh-hero h1 { margin-top: 22px; font: 400 clamp(46px, 8vw, 92px)/.96 var(--serif); letter-spacing: -0.025em; }
+.dh-lede { margin-top: 18px; max-width: 520px; font-size: 17px; color: var(--text-2); }
+
+/* the paste box, with corner brackets */
+.dh-paste { position: relative; width: min(600px, 100%); margin-top: 36px; text-align: left; background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 12px 12px 16px; }
+.dh-paste::before, .dh-paste::after { content: ""; position: absolute; width: 12px; height: 12px; border: 2px solid var(--text-3); pointer-events: none; }
+.dh-paste::before { top: -6px; left: -6px; border-right: 0; border-bottom: 0; }
+.dh-paste::after { bottom: -6px; right: -6px; border-left: 0; border-top: 0; }
+.dh-paste-top { font-size: 13px; color: var(--text-2); }
+.dh-paste-row { margin-top: 10px; display: flex; align-items: center; gap: 12px; }
+.dh-paste-row code { flex: 1; min-width: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+.dh-copy { appearance: none; border: 0; cursor: pointer; flex: none; height: 36px; padding: 0 14px; border-radius: 8px;
+  display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: var(--accent-ink); font: 600 14px var(--sans);
+  min-width: 84px; justify-content: center; transition: background .15s ease, transform .1s ease; }
+.dh-copy:hover { background: #3df2b0; }
+.dh-copy:active { transform: scale(.97); }
+.dh-copy svg { width: 14px; height: 14px; }
+.dh-apps { margin-top: 18px; font-size: 13px; color: var(--text-3); }
+.dh-alt { margin-top: 6px; font-size: 14px; }
+
+/* section label: ├── 01  HOW IT WORKS ──┤ */
+.dh-sec { padding-top: clamp(56px, 9vh, 96px); scroll-margin-top: 24px; }
+.dh-label { display: flex; align-items: center; gap: 12px; font: 500 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+.dh-label span:nth-child(2) { color: var(--accent); }
+.dh-rule { flex: 1; height: 1px; background: var(--line-strong); position: relative; }
+.dh-rule:first-child { flex: 0 0 28px; }
+.dh-rule::before { content: ""; position: absolute; top: -4px; width: 1px; height: 9px; background: var(--line-strong); }
+.dh-rule:first-child::before { left: 0; }
+.dh-rule:last-child::before { right: 0; }
+.dh-h2 { margin-top: 22px; font: 400 clamp(32px, 4.6vw, 48px)/1.05 var(--serif); letter-spacing: -0.02em; }
+.dh-sub { margin-top: 10px; max-width: 640px; font-size: 16px; color: var(--text-2); }
+.dh-sub a { color: var(--text); text-underline-offset: 3px; }
+.dh-after { margin-top: 16px; font-size: 14px; }
+
+.dh-steps { margin-top: 28px; display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dh-step, .dh-tool, .dh-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.dh-step { padding: 20px; display: flex; flex-direction: column; }
+.dh-num { font: 500 13px var(--mono); color: var(--accent); }
+.dh-step h3, .dh-tool h3, .dh-holds h3 { margin-top: 10px; font: 600 17px/1.3 var(--sans); color: var(--text); letter-spacing: -0.01em; }
+.dh-step p, .dh-tool p, .dh-holds p { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--text-2); }
+.dh-vis { margin-top: auto; padding-top: 18px; }
+.dh-vis > * { font: 12.5px/1.7 var(--mono); }
+.dh-line { display: block; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--text); overflow-wrap: anywhere; }
+.dh-term, .dh-chat { display: flex; flex-direction: column; }
+.dh-term { padding: 10px 12px; margin-top: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.dh-step .dh-term { margin-top: 18px; }
+.dh-term span { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dh-term .dim { color: var(--text-3); }
+.dh-term b { color: var(--accent); font-weight: 500; }
+.dh-term em { font-style: normal; color: var(--text-3); }
+/* the connect output types itself in, line by line, once it scrolls into view */
+.dh-term:not(.play) span:not(.dim) { opacity: 0; }
+.dh-term.play span:not(.dim) { animation: dh-line .35s ease both; }
+.dh-term span:nth-child(2) { animation-delay: .5s; }
+.dh-term span:nth-child(3) { animation-delay: .9s; }
+.dh-term span:nth-child(4) { animation-delay: 1.3s; }
+.dh-term span:nth-child(5) { animation-delay: 1.8s; }
+@keyframes dh-line { from { opacity: 0; transform: translateX(-4px); } }
+.dh-chat { gap: 8px; }
+.dh-chat .me { align-self: flex-start; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); color: var(--text); }
+.dh-chat .ok { display: inline-flex; align-items: center; gap: 8px; padding: 0 2px; color: var(--accent); }
+.dh-chat .ok i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+
+.dh-card { margin-top: 28px; overflow: hidden; }
+.dh-tabs { display: flex; align-items: center; gap: 4px; padding: 8px 8px 0 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.dh-tabs button { appearance: none; border: 0; background: none; cursor: pointer; height: 38px; padding: 0 14px; flex: none;
+  color: var(--text-3); font: 500 14px var(--sans); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.dh-tabs button:hover { color: var(--text-2); }
+.dh-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.dh-file { margin-left: auto; padding: 0 8px; font: 12px var(--mono); color: var(--text-3); flex: none; }
+.dh-code { position: relative; }
+.dh-code pre { margin: 0; padding: 18px 20px; overflow-x: auto; }
+.dh-code pre code { font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre; }
+.dh-codecopy { position: absolute; top: 12px; right: 12px; height: 30px; font-size: 12px; background: var(--surface); }
+.dh-note { padding: 12px 20px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-3); }
+
+.dh-tools { margin-top: 28px; display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dh-tool { padding: 20px; display: flex; flex-direction: column; }
+.dh-tool h3 { margin-top: 0; }
+.dh-chips { margin-top: auto; padding-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+.dh-chips code { font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--accent-bg); color: var(--accent); }
+.dh-holds { margin-top: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 18px; }
+.dh-holds > div { padding: 20px; }
+.dh-holds > div + div { border-left: 1px solid var(--line); }
+.dh-holds h3 { margin-top: 0; font-size: 15px; }
+.dh-holds p { font-size: 13px; }
+
+.dh-more { margin-top: 24px; display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dh-more a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 20px;
+  border: 1px solid var(--line); border-radius: 16px; text-decoration: none; transition: border-color .15s ease, background .15s ease; }
+.dh-more a:hover { border-color: var(--line-strong); background: var(--surface); }
+.dh-more b { font-weight: 600; color: var(--text); }
+.dh-more span { grid-column: 1; font-size: 13px; color: var(--text-3); }
+.dh-more svg { grid-column: 2; grid-row: 1 / span 2; width: 16px; height: 16px; color: var(--text-3); }
+
+@media (max-width: 860px) {
+  .dh-steps, .dh-tools { grid-template-columns: 1fr; }
+  .dh-holds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dh-holds > div:nth-child(3) { border-left: 0; }
+  .dh-holds > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+}
+@media (max-width: 560px) {
+  .dh-paste-row { flex-direction: column; align-items: stretch; }
+  .dh-copy { height: 40px; }
+  .dh-holds, .dh-more { grid-template-columns: 1fr; }
+  .dh-holds > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .dh-file { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dh-term span { animation: none !important; opacity: 1 !important; }
+}

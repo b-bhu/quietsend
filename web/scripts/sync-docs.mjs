@@ -19,6 +19,9 @@ const FILES = [
   ["docs/INTEGRATING.md", "docs/INTEGRATING.md"],
   ["docs/SECURITY.md", "docs/SECURITY.md"],
   ["docs/next-version.md", "docs/next-version.md"],
+  ["docs/INSTALL.md", "docs/INSTALL.md"],
+  // "Set up quietsend from https://quietsend.vercel.app/install" points an agent here.
+  ["docs/INSTALL.md", "install.md"],
   // The canonical agent entry point lives at the repo root; serve it at /llms.txt.
   ["llms.txt", "llms.txt"],
 ];

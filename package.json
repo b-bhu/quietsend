@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "verify": "tsx scripts/verify.ts",
     "mcp": "tsx mcp/server.ts",
-    "setup-agent": "tsx scripts/setup-agent.ts"
+    "setup-agent": "tsx scripts/setup-agent.ts",
+    "connect": "tsx scripts/connect.ts"
   },
   "keywords": [],
   "author": "",

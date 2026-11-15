@@ -31,7 +31,7 @@ Read-only and needs no keys. It checks the published Solana and Base transaction
 cd web && npm install && npm run dev
 ```
 
-The app opens at `localhost:5173`: send at `#/send`, the developer guide at `#/docs`, the guard demo at `#/demo`. To connect an agent, start with the **[developer guide](docs/INTEGRATING.md)**. Agents can also read [llms.txt](llms.txt).
+The app opens at `localhost:5173`: send at `#/send`, the developer guide at `#/docs`, the guard demo at `#/demo`. To connect an agent, tell it `Set up quietsend from https://quietsend.vercel.app/install` ([INSTALL.md](docs/INSTALL.md)), or run `NEAR_ACCOUNT=you.testnet npm run connect` to add quietsend to every AI app on your computer. The **[developer guide](docs/INTEGRATING.md)** has the rest. Agents can also read [llms.txt](llms.txt).
 
 ## How it works
 
@@ -138,9 +138,10 @@ contract/            NEAR policy contract (Rust): limits, approvals, Solana pars
 core/                the library: derive, sign, guard, send (Solana), evm.ts (Base), x402.ts (HTTP 402)
 mcp/                 MCP server: get_address_and_balance, quote_send, send, fetch_paid, get_receipt
 web/                 Vite + React app: send, receipts, #/docs, #/demo
-scripts/             setup-agent, verify, the 402 demo server, step-by-step scripts
+scripts/             setup-agent, connect (adds the MCP server to your AI apps), verify, the 402 demo server, step-by-step scripts
 test/                offline tests: guard attacks, Base digest parity, 402 verification
 docs/INTEGRATING.md  developer guide (rendered at #/docs)
+docs/INSTALL.md      setup steps an agent follows (served at /install)
 docs/SECURITY.md     threat model
 llms.txt             entry point for agents (served at /llms.txt)
 video/               the ad (Remotion overlays)

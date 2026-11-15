@@ -32,6 +32,16 @@ Re-run `setup-agent` with new values at any time to change the limits.
 
 The MCP server runs on your machine over stdio, so your keys stay local.
 
+**Every AI app at once**
+
+```bash
+NEAR_ACCOUNT=you.testnet npm run connect
+```
+
+This finds Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, Codex and Gemini CLI and adds `quietsend` to each one that is installed. It backs up each config it changes (`*.quietsend.bak`) and leaves alone a file it cannot parse. Add `-- --dry-run` to preview, `-- --only cursor,vscode` to pick apps, `-- --remove` to undo.
+
+Or tell your agent `Set up quietsend from https://quietsend.vercel.app/install`. It reads [INSTALL.md](INSTALL.md) and runs these steps itself.
+
 **Claude Code**
 
 ```bash

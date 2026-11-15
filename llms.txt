@@ -1,6 +1,10 @@
 # quietsend
 
-Send USDC on Solana devnet and Base Sepolia from a NEAR testnet account, via NEAR Chain Signatures (MPC). No Solana or Ethereum private key is stored. An agent can pay within limits the account owner sets on-chain. Live: https://quietsend.vercel.app (developer guide at https://quietsend.vercel.app/#/docs). Testnet only; test USDC has no real value. Do not use this on mainnet or with real funds.
+Send USDC on Solana devnet and Base Sepolia from a NEAR testnet account, via NEAR Chain Signatures (MPC). No Solana or Ethereum private key is stored. An agent can pay within limits the account owner sets on-chain. Live: https://quietsend.vercel.app (docs at https://quietsend.vercel.app/#/docs, developer guide at https://quietsend.vercel.app/#/docs/guide). Testnet only; test USDC has no real value. Do not use this on mainnet or with real funds.
+
+## Set up (for agents)
+
+If the user asks you to set up quietsend, or says "Set up quietsend from https://quietsend.vercel.app/install", fetch https://quietsend.vercel.app/install (markdown, same as docs/INSTALL.md) and follow it in order. In short: ask for the user's NEAR testnet account, clone and `npm install`, run `NEAR_ACCOUNT=<account> npm run connect` (adds the `quietsend` MCP server to Claude Code, Claude Desktop, Cursor, Windsurf, VS Code, Codex and Gemini CLI, whichever are installed; backs up each config; `--dry-run`, `--only`, `--remove`), copy the account's key into `.keys/` without printing it, then `npm run setup-agent` to set limits and create the agent's function-call key. Never print, read aloud or log a private key, and never set `QUIETSEND_ALLOW_HUMAN=1`.
 
 ## What it does
 
@@ -50,7 +54,7 @@ npx tsx web/scripts/verify-lib.ts
 
 ## MCP server (agents)
 
-Local stdio server. Tools: `get_address_and_balance`, `quote_send`, `send` (chain `solana-devnet` or `base-sepolia`; mode `normal` or `hide_recipient`; signer backend `policy` by default; `human` only if the server runs with `QUIETSEND_ALLOW_HUMAN=1`), `fetch_paid` (HTTP 402), `get_receipt`. Set `NEAR_ACCOUNT` to your account; there is no default. One-time setup: `NEAR_ACCOUNT=you.testnet npm run setup-agent`. Full guide: docs/INTEGRATING.md. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
+Local stdio server. Tools: `get_address_and_balance`, `quote_send` (both chains), `send` (chain `solana-devnet` or `base-sepolia`; mode `normal` or `hide_recipient`; signer backend `policy` by default; `human` only if the server runs with `QUIETSEND_ALLOW_HUMAN=1`), `fetch_paid` (HTTP 402), `get_receipt`. Set `NEAR_ACCOUNT` to your account; there is no default. One-time setup: `NEAR_ACCOUNT=you.testnet npm run setup-agent`. Full guide: docs/INTEGRATING.md. Credentials stay in `.keys/` or a gitignored env file and are never returned by a tool. Logs go to stderr.
 
 ```bash
 npx tsx mcp/server.ts
@@ -77,6 +81,9 @@ Claude Desktop / Claude Code config (stdio):
 - `send` with `chain: "base-sepolia"` sends USDC from the agent's EVM address through `sign_evm_for_caller`. The contract builds an EIP-3009 `transferWithAuthorization` digest for USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e` itself and signs only that. A relayer submits it and pays gas: the agent address needs USDC only, never ETH. `mode` must be `normal`; hide-recipient is Solana-only. The relayer key is `.keys/base-relayer.json`.
 - `fetch_paid { url, max_amount_usdc }` GETs a URL. On HTTP 402 with an x402 `exact` USDC offer on `base-sepolia`, it signs the payment through the policy contract and retries with `X-PAYMENT`; the paid server settles it. `max_amount_usdc` is a per-call ceiling on top of the contract's limits. Over-limit returns `needs_approval` and pays nothing.
 - Limits are one USDC budget across Solana and Base.
+- `quote_send` takes `chain: "base-sepolia"` too: it returns the agent's Base address and USDC balance, no USDC fee, and whether the contract would sign, hold for approval, or refuse (same rules as the contract: hard cap, per transfer, daily, allowlist). Quote before a Base `send`.
+- A Base `send` that goes through returns a `receiptId`; `get_receipt` accepts that id or the `0x` transaction hash. Any Base Sepolia hash it did not send is rebuilt from the chain (USDC transfers, submitting address, status).
+- What Base does not have: a `human` signer (every Base send goes through the policy contract), hide-recipient, and sending from the web app, which is Solana-only.
 
 Proven on Base Sepolia (14 Nov 2026):
 

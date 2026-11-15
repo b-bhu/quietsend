@@ -123,3 +123,4 @@ export {
   type Authorization,
   type EvmSendResult,
 } from "./evm";
+export { buildEvmReceipt, inspectEvmTx, evmPrivacyRows, type EvmReceipt } from "./evm-receipt";

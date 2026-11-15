@@ -19,7 +19,7 @@
 npm install && npm test
 ```
 
-55 tests, plus 25 in the Rust contract. No network, no wallet, about a second.
+60 tests, plus 25 in the Rust contract. No network, no wallet, about a second.
 
 ```bash
 npm run verify

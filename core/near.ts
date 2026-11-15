@@ -292,6 +292,8 @@ export type PolicyView = {
   daily: string;
   cap: string;
   spent_today: string;
+  /** UTC day (unix days) that spent_today belongs to; on a later day the contract counts 0. */
+  day?: number;
   allowlist?: string[];
   allow_hide_unverified?: boolean;
 };

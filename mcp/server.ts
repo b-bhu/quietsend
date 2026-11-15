@@ -9,6 +9,10 @@ import {
   derivePolicyEvmAddress,
   deriveSolanaAddress,
   EVM_CHAINS,
+  buildEvmReceipt,
+  evmPrivacyRows,
+  inspectEvmTx,
+  isEvmAddress,
   getConfig,
   getEvmBalances,
   sendEvmUsdc,
@@ -28,6 +32,7 @@ import {
   type Receipt,
 } from "../core/index.ts";
 import { fetchPaid } from "../core/x402.ts";
+import { evaluatePolicyView, type PolicyCheck } from "../core/policy-check.ts";
 import { resolveAccount, loadPolicyKey, loadPrivateKey, loadRelayerKey } from "./keys.ts";
 import { getStoredReceipt, saveReceipt } from "./receipts.ts";
 
@@ -58,6 +63,16 @@ function errResult(message: string) {
 async function addressFor(nearAccount: string, backend: "human" | "policy"): Promise<string> {
   if (backend === "policy") return derivePolicySolanaAddress(nearAccount);
   return deriveSolanaAddress(nearAccount);
+}
+
+/** What the policy contract would decide for this send (see core/policy-check.ts). */
+async function policyCheck(nearAccount: string, amountBase: bigint, recipient: string): Promise<PolicyCheck> {
+  const policy = await viewPolicy(nearAccount);
+  if (policy === "not_deployed") return { approval: "policy_contract_not_deployed", note: "policy contract not deployed yet" };
+  if (policy === "no_policy") {
+    return { approval: "rejected", note: `no policy set for ${nearAccount}; run setup-agent (the owner must call set_policy first)` };
+  }
+  return evaluatePolicyView(policy, amountBase, recipient);
 }
 
 function createServer(): McpServer {
@@ -115,61 +130,67 @@ function createServer(): McpServer {
     {
       title: "Quote a USDC send",
       description:
-        "Preview a Normal or Hide-recipient USDC send on Solana devnet: fee, total debit, whether it would need approval, and a PUBLIC/HIDDEN table. Does not send.",
+        "Preview a USDC send without sending: fee, total debit, the agent's balance, whether the policy contract would sign it, need approval, or refuse it, and a PUBLIC/HIDDEN table. chain=solana-devnet (default): mode normal or hide_recipient. chain=base-sepolia: mode normal only, no USDC fee, a relayer pays gas. The limits are one budget across both chains. Does not send.",
       inputSchema: z.object({
-        recipient: z.string().describe("Recipient Solana address."),
+        recipient: z.string().describe("Recipient: a Solana address, or a 0x address for base-sepolia."),
         amount_usdc: z.string().describe('Amount in USDC, for example "0.1".'),
-        mode: SendMode.describe("normal or hide_recipient."),
-        signer_backend: SignerBackend.optional().describe("policy (default) or human."),
+        mode: SendMode.describe("normal or hide_recipient (Solana only)."),
+        signer_backend: SignerBackend.optional().describe("policy (default) or human. base-sepolia is always policy."),
         near_account: z.string().optional(),
+        chain: Chain.optional().describe("solana-devnet (default) or base-sepolia."),
       }),
     },
-    async ({ recipient, amount_usdc, mode, signer_backend, near_account }) => {
+    async ({ recipient, amount_usdc, mode, signer_backend, near_account, chain }) => {
       try {
         const amountBase = parseUsdc(amount_usdc);
+        const nearAccount = resolveAccount(near_account);
+
+        if (chain === "base-sepolia") {
+          if (!isEvmAddress(recipient)) return errResult(`On base-sepolia the recipient must be a 0x address; got ${recipient}`);
+          if (mode !== "normal") return errResult("hide_recipient is Solana-only (MagicBlock). On base-sepolia use mode=normal.");
+          if (signer_backend === "human") return errResult("base-sepolia sends go through the policy contract only; use signer_backend=policy.");
+          const from = await derivePolicyEvmAddress(nearAccount);
+          const [check, bal] = await Promise.all([
+            policyCheck(nearAccount, amountBase, `base-sepolia:${recipient.toLowerCase()}`),
+            getEvmBalances("base-sepolia", from).catch(() => undefined),
+          ]);
+          const short = bal && bal.usdcBase < amountBase;
+          return textResult({
+            nearAccount,
+            chain,
+            signerBackend: "policy",
+            mode,
+            from,
+            recipient,
+            amountUsdc: amount_usdc,
+            feeUsdc: "0",
+            feeNote: "No USDC fee and no ETH needed: a relayer submits the transfer and pays the Base gas.",
+            totalDebitUsdc: formatUsdc(amountBase),
+            balanceUsdc: bal ? formatUsdc(bal.usdcBase) : undefined,
+            balanceWarning: short ? `The agent's Base address holds ${formatUsdc(bal!.usdcBase)} USDC, less than ${amount_usdc}. Fund ${from} first.` : undefined,
+            approval: check.approval,
+            approvalNote: check.note,
+            privacy: evmPrivacyRows({ nearAccount, from, to: recipient, amountUsdc: amount_usdc }),
+          });
+        }
+
         const feeBase = mode === "hide_recipient" ? amountBase / 1000n + 1n : 0n;
         const totalDebit = mode === "hide_recipient" ? hideRecipientDebit(amountBase) : amountBase;
         const backend = signer_backend ?? "policy";
-        const nearAccount = resolveAccount(near_account);
         let warning: string | undefined;
         try {
-          const check = await classifyRecipient(getConnection(), recipient);
-          warning = check.warning;
+          const rc = await classifyRecipient(getConnection(), recipient);
+          warning = rc.warning;
         } catch {
           // quote should still work if the RPC lookup fails
         }
-        let approval: "under_limit" | "needs_approval" | "rejected" | "policy_contract_not_deployed" = "under_limit";
-        let approvalNote =
+        const check: PolicyCheck =
           backend === "human"
-            ? "Human mode has no on-chain spending cap; the account key authorizes the sign call directly."
-            : `Policy limits are enforced by ${getConfig().policyContract}.`;
-        if (backend === "policy") {
-          const policy = await viewPolicy(nearAccount);
-          if (policy === "not_deployed") {
-            approval = "policy_contract_not_deployed";
-            approvalNote = "policy contract not deployed yet";
-          } else if (policy === "no_policy") {
-            approval = "rejected";
-            approvalNote = `no policy set for ${nearAccount}; the owner must call set_policy first`;
-          } else {
-            const per = BigInt(policy.per_transfer);
-            const daily = BigInt(policy.daily);
-            const cap = BigInt(policy.cap);
-            const spent = BigInt(policy.spent_today);
-            if (amountBase > cap) {
-              approval = "rejected";
-              approvalNote = `amount exceeds the hard cap of ${formatUsdc(cap)} USDC`;
-            } else if (amountBase > per || spent + amountBase > daily) {
-              approval = "needs_approval";
-              approvalNote = `over the agent cap (per transfer ${formatUsdc(per)} USDC, daily ${formatUsdc(daily)} USDC, spent today ${formatUsdc(spent)} USDC); the owner must approve`;
-            } else {
-              approval = "under_limit";
-              approvalNote = `within policy (per transfer ${formatUsdc(per)} USDC, daily ${formatUsdc(daily)} USDC, spent today ${formatUsdc(spent)} USDC)`;
-            }
-          }
-        }
+            ? { approval: "under_limit", note: "Human mode has no on-chain spending cap; the account key authorizes the sign call directly." }
+            : await policyCheck(nearAccount, amountBase, recipient);
         return textResult({
           nearAccount,
+          chain: "solana-devnet",
           signerBackend: backend,
           mode,
           recipient,
@@ -180,8 +201,8 @@ function createServer(): McpServer {
               ? "MagicBlock charges 0.1% (plus 1 base unit of rounding). SOL rent/fees are separate."
               : "No USDC fee. The sender pays a small amount of devnet SOL for the transaction.",
           totalDebitUsdc: formatUsdc(totalDebit),
-          approval,
-          approvalNote,
+          approval: check.approval,
+          approvalNote: check.note,
           recipientWarning: warning,
           privacy: quotePrivacyPreview(asMode(mode)),
         });
@@ -233,7 +254,10 @@ function createServer(): McpServer {
             amountBase: parseUsdc(amount_usdc),
             log: (m) => log(m),
           });
-          return textResult(jsonSafe({ ...res, amount_usdc }));
+          if (res.status !== "sent") return textResult(jsonSafe({ ...res, amount_usdc }));
+          const receipt = buildEvmReceipt(res, nearAccount);
+          saveReceipt(receipt);
+          return textResult(jsonSafe({ ...res, amount_usdc, receiptId: receipt.id, receipt }));
         } catch (e) {
           return errResult(e instanceof Error ? e.message : String(e));
         }
@@ -364,15 +388,20 @@ function createServer(): McpServer {
     {
       title: "Get a send receipt",
       description:
-        "Return a JSON receipt for a previous send: legs, amounts, explorer links, and a PUBLIC/HIDDEN table consistent with the web Explorer page. Pass a receipt id or a Solana/NEAR transaction hash.",
+        "Return a JSON receipt for a previous send: amounts, explorer links, and a PUBLIC/HIDDEN table consistent with the web Explorer page. Works for Solana and Base Sepolia sends. Pass a receipt id, a Solana signature, a Base 0x transaction hash, or a NEAR transaction hash. A hash this server did not send is rebuilt from the chain.",
       inputSchema: z.object({
-        id: z.string().describe("Receipt id, Solana transaction signature, or NEAR transaction hash."),
+        id: z.string().describe("Receipt id, Solana transaction signature, Base 0x transaction hash, or NEAR transaction hash."),
       }),
     },
     async ({ id }) => {
       try {
         const stored = getStoredReceipt(id);
         if (stored) return textResult(stored);
+        if (/^0x[0-9a-fA-F]{64}$/.test(id)) {
+          const evm = await inspectEvmTx("base-sepolia", id as `0x${string}`);
+          if (!evm) return errResult("No receipt with that id, and no Base Sepolia transaction with that hash, was found.");
+          return textResult(evm);
+        }
         const view = await inspectTx(id).catch(() => undefined);
         if (!view) return errResult("No receipt with that id, and no Solana devnet transaction with that signature, was found.");
         // Rebuild a minimal receipt from the chain so a judge can inspect a published tx.

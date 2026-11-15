@@ -92,10 +92,10 @@ const page = await fetchPaid("https://api.example/paid", {
 | Tool | Arguments | Does |
 |---|---|---|
 | `get_address_and_balance` | `chain?`, `mode?` (`policy` / `human`), `near_account?` | Derives the address and reads its balances |
-| `quote_send` | `recipient`, `amount_usdc`, `mode`, `signer_backend?` | Shows the fee and whether a Solana send would need approval. Sends nothing |
+| `quote_send` | `recipient`, `amount_usdc`, `mode`, `chain?`, `signer_backend?` | Shows the fee, the balance on Base, and whether the contract would sign it, hold it for approval or refuse it. Sends nothing |
 | `send` | `recipient`, `amount_usdc`, `mode`, `chain?`, `signer_backend?` | Sends USDC |
 | `fetch_paid` | `url`, `max_amount_usdc` | GETs a URL. On HTTP 402 it pays (x402 v1, `exact`, USDC on `base-sepolia`) and retries |
-| `get_receipt` | `id` | A receipt for a past send |
+| `get_receipt` | `id` | A receipt for a past send, on Solana or Base: a receipt id, a Solana signature, a Base `0x` hash or a NEAR hash. A hash this server did not send is rebuilt from the chain |
 
 - **`chain`** is `solana-devnet` (the default) or `base-sepolia`.
 - **`mode`** is `normal` or `hide_recipient`. `hide_recipient` works on Solana only.
@@ -109,7 +109,7 @@ Every agent send returns one of:
 { "error": "Policy rejected the send: amount 6000000 is above the hard cap 5000000" }
 ```
 
-On Solana the success status is `signed`.
+On Solana the success status is `signed`. A Base send that went through also returns a `receiptId`, which `get_receipt` accepts, as it does the `txHash`.
 
 ## Limits and approvals
 

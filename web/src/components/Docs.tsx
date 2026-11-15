@@ -23,27 +23,32 @@ function rewriteLinks(html: string): string {
   });
 }
 
-const NAV = (page: string) => (
-  <nav className="docs-nav">
-    <a href="#/docs" aria-current={page === "" ? "page" : undefined}>Overview</a>
-    <a href="#/docs/guide" aria-current={page === "guide" ? "page" : undefined}>Developer guide</a>
-    <a href="#/docs/security" aria-current={page === "security" ? "page" : undefined}>Security</a>
-    <a href="/install.md" target="_blank" rel="noreferrer">install.md</a>
-    <a href="/llms.txt" target="_blank" rel="noreferrer">llms.txt</a>
-    <a href={GITHUB.replace("blob/main/", "")} target="_blank" rel="noreferrer">GitHub</a>
-  </nav>
-);
+// One tab bar for every docs page, so it never moves between them.
+const TABS: { href: string; label: string; page?: string; external?: boolean }[] = [
+  { href: "#/docs", label: "Overview", page: "" },
+  { href: "#/docs/guide", label: "Developer guide", page: "guide" },
+  { href: "#/docs/security", label: "Security", page: "security" },
+  { href: "/install.md", label: "install.md", external: true },
+  { href: "/llms.txt", label: "llms.txt", external: true },
+  { href: GITHUB.replace("blob/main/", ""), label: "GitHub", external: true },
+];
 
 export default function Docs({ page }: { page: string }) {
-  if (!(page in PAGES)) {
-    return (
-      <>
-        <div className="docs docs-top">{NAV("")}</div>
-        <DocsHome />
-      </>
-    );
-  }
-  return <MarkdownDoc page={page} />;
+  const known = page in PAGES ? page : "";
+  return (
+    <div className="docs-shell">
+      <nav className="docs-tabs" aria-label="Docs">
+        {TABS.map((t) =>
+          t.external ? (
+            <a key={t.href} href={t.href} target="_blank" rel="noreferrer">{t.label}</a>
+          ) : (
+            <a key={t.href} href={t.href} aria-current={known === t.page ? "page" : undefined}>{t.label}</a>
+          ),
+        )}
+      </nav>
+      {known ? <MarkdownDoc page={known} /> : <DocsHome />}
+    </div>
+  );
 }
 
 function MarkdownDoc({ page }: { page: string }) {
@@ -90,7 +95,6 @@ function MarkdownDoc({ page }: { page: string }) {
 
   return (
     <div className="docs">
-      {NAV(page)}
       {err && <p className="err">{err}</p>}
       {html ? <article ref={ref} className="prose" dangerouslySetInnerHTML={{ __html: html }} /> : !err && <p className="hint">Loading…</p>}
     </div>

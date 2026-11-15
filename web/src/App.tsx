@@ -9,7 +9,7 @@ import Home from "./components/Home";
 import Send from "./components/Send";
 import Explorer from "./components/Explorer";
 import History from "./components/History";
-import { Back } from "./components/icons";
+import AccountMenu from "./components/AccountMenu";
 
 export interface Session {
   nearAccount: string;
@@ -98,31 +98,30 @@ export default function App() {
     account && address && wallet ? { nearAccount: account, solanaAddress: address, wallet } : undefined;
   const page = route.startsWith("/tx/") ? "tx" : route.slice(1) || "landing";
 
+  // Which top tab is lit: the one whose screen is showing. A receipt, the guard demo and
+  // the account page light none; every other route falls through to Send below.
+  const tab =
+    page === "history" ? "history"
+    : page.startsWith("docs") ? "docs"
+    : page === "tx" || page === "demo" || (page === "account" && session) ? undefined
+    : "send";
+
   if (page === "landing") return <Landing onEnter={() => (location.hash = "#/send")} />;
 
   return (
     <div className="frame">
       <nav className="app-nav">
-        <div className="left">
-          <a className="link" href="#/"><Back />Back</a>
+        <div className="nav-left">
+          <a className="logo" href="#/">quietsend</a>
+          <div className="nav-tabs">
+            <a href="#/send" aria-current={tab === "send" ? "page" : undefined}>Send</a>
+            <a href="#/history" aria-current={tab === "history" ? "page" : undefined}>History</a>
+            <a href="#/docs" aria-current={tab === "docs" ? "page" : undefined}>Docs</a>
+          </div>
         </div>
-        <a className="logo mid" href="#/">quietsend</a>
-        <div className="right">
-          {page.startsWith("docs") ? (
-            <a className="link" href="#/send">Send</a>
-          ) : (
-            <a className="link" href="#/docs">Docs</a>
-          )}
-          {page === "history" ? (
-            <a className="link" href="#/send">Send</a>
-          ) : (
-            <a className="link" href="#/history">History</a>
-          )}
+        <div className="nav-right">
           {session ? (
-            <>
-              <a className="net" href="#/account" title="Your address" data-testid="account">{session.nearAccount}</a>
-              <button className="ghost" onClick={disconnect}>Disconnect</button>
-            </>
+            <AccountMenu session={session} onDisconnect={disconnect} />
           ) : (
             <button className="ghost" onClick={connect}>Connect NEAR wallet</button>
           )}
